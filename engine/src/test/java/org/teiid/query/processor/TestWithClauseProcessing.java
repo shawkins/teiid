@@ -1,5 +1,7 @@
 package org.teiid.query.processor;
 
+import static org.teiid.query.processor.TestProcessor.*;
+
 import java.util.Arrays;
 import java.util.List;
 
