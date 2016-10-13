@@ -63,6 +63,7 @@ import org.teiid.dqp.internal.process.SessionAwareCache.CacheID;
 import org.teiid.dqp.internal.process.TupleSourceCache;
 import org.teiid.dqp.message.RequestID;
 import org.teiid.dqp.service.TransactionContext;
+import org.teiid.dqp.service.TransactionContext.Scope;
 import org.teiid.dqp.service.TransactionService;
 import org.teiid.jdbc.ConnectionImpl;
 import org.teiid.jdbc.LocalProfile;
@@ -1091,6 +1092,12 @@ public class CommandContext implements Cloneable, org.teiid.CommandContext {
 			public void setAutoCommit(boolean autoCommit) throws SQLException {
 				//TODO: detect if attempted set conflicts with current txn state
 				throw new TeiidSQLException();
+			}
+			
+			@Override
+			public boolean getAutoCommit() throws SQLException {
+			    TransactionContext tc = getTransactionContext();
+		        return tc == null || tc.getTransactionType() == Scope.NONE;
 			}
 			
 			@Override

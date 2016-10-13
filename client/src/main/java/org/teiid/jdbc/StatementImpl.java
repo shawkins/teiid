@@ -63,7 +63,16 @@ import org.teiid.net.TeiidURL;
 
 
 public class StatementImpl extends WrapperImpl implements TeiidStatement {
-	private static Logger logger = Logger.getLogger("org.teiid.jdbc"); //$NON-NLS-1$
+	private static final String PG_PREPARED_GID = "pg_prepared_gid"; //$NON-NLS-1$
+
+    private static Logger logger = Logger.getLogger("org.teiid.jdbc"); //$NON-NLS-1$
+	
+	static String normalizeString(String name) {
+        if (name.length() > 1 && name.startsWith("\'") && name.endsWith("\'")) { //$NON-NLS-1$ //$NON-NLS-2$
+            return StringUtil.replaceAll(name.substring(1, name.length() - 1), "\'", "\'\'"); //$NON-NLS-1$ //$NON-NLS-2$
+        }
+        return name;
+    }
 	
 	static EnhancedTimer cancellationTimer = new EnhancedTimer("Teiid Statement Timeout"); //$NON-NLS-1$
 	
@@ -161,6 +170,7 @@ public class StatementImpl extends WrapperImpl implements TeiidStatement {
 	private boolean closeOnCompletion;
     
     static Pattern TRANSACTION_STATEMENT = Pattern.compile("\\s*(commit|rollback|(start\\s+transaction))\\s*;?\\s*", Pattern.CASE_INSENSITIVE); //$NON-NLS-1$
+    static Pattern XA_TRANSACTION_STATEMENT = Pattern.compile("\\s*(prepare transaction|rollback prepared|commit preapred)\\s+((?:'[^']*')+);?\\s*", Pattern.CASE_INSENSITIVE); //$NON-NLS-1$
     static Pattern SET_STATEMENT = Pattern.compile("\\s*set(?:\\s+(payload))?\\s+((?:session authorization)|(?:[a-zA-Z]\\w*)|(?:\"[^\"]*\")+)\\s+(?:to\\s+)?((?:[^\\s]*)|(?:'[^']*')+)\\s*;?\\s*", Pattern.CASE_INSENSITIVE); //$NON-NLS-1$
     static Pattern SET_CHARACTERISTIC_STATEMENT = Pattern.compile("\\s*set\\s+session\\s+characteristics\\s+as\\s+transaction\\s+isolation\\s+level\\s+((?:read\\s+(?:(?:committed)|(?:uncommitted)))|(?:repeatable\\s+read)|(?:serializable))\\s*", Pattern.CASE_INSENSITIVE); //$NON-NLS-1$
     static Pattern SHOW_STATEMENT = Pattern.compile("\\s*show\\s+([a-zA-Z]\\w*|(?:\"[^\"]*\")+)\\s*;?\\s*?", Pattern.CASE_INSENSITIVE); //$NON-NLS-1$
@@ -497,6 +507,32 @@ public class StatementImpl extends WrapperImpl implements TeiidStatement {
 				}        		
         		this.updateCounts = new int[] {0};
         		return booleanFuture(false);
+        	}
+        	match = XA_TRANSACTION_STATEMENT.matcher(commands[0]);
+        	if (match.matches()) {
+        	    logger.finer("Executing as xa transaction statement"); //$NON-NLS-1$
+        	    String command = match.group(1);
+        	    String id = match.group(2);
+        	    if (command.equalsIgnoreCase("PREPARE TRANSACTION")) { //$NON-NLS-1$
+        	        if (getConnection().getAutoCommit()) {
+        	            throw new TeiidSQLException(null, "there is no transaction in progress", "25P01", 0); //$NON-NLS-1$ //$NON-NLS-2$
+        	        }
+        	        if (this.getConnection().getExecutionProperty(PG_PREPARED_GID) != null) {
+        	            throw new TeiidSQLException();
+        	        }
+        	        this.getConnection().setExecutionProperty(PG_PREPARED_GID, normalizeString(id));
+        	        this.updateCounts = new int[] {0};
+        	        return booleanFuture(false);
+                }
+                if (!id.equals(this.getConnection().getExecutionProperty(PG_PREPARED_GID))) {
+                    throw new TeiidSQLException();
+                }
+                this.getConnection().setExecutionProperty(PG_PREPARED_GID, null);
+                if (StringUtil.startsWithIgnoreCase(command, "commit")) { //$NON-NLS-1$
+                    commands[0] = "commit"; //$NON-NLS-1$
+                } else {
+                    commands[0] = "rollback"; //$NON-NLS-1$
+                }
         	}
         	match = TRANSACTION_STATEMENT.matcher(commands[0]);
         	if (match.matches()) {

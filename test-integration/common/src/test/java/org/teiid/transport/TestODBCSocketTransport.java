@@ -36,6 +36,9 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Properties;
 
+import javax.sql.XAConnection;
+import javax.transaction.xa.XAResource;
+
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -44,11 +47,13 @@ import org.junit.Test;
 import org.mockito.Mockito;
 import org.postgresql.Driver;
 import org.postgresql.core.v3.ExtendedQueryExectutorImpl;
+import org.postgresql.xa.PGXADataSource;
 import org.teiid.adminapi.Model.Type;
 import org.teiid.adminapi.Request.ProcessingState;
 import org.teiid.adminapi.impl.ModelMetaData;
 import org.teiid.adminapi.impl.RequestMetadata;
 import org.teiid.adminapi.impl.VDBMetaData;
+import org.teiid.client.xa.XidImpl;
 import org.teiid.common.buffer.BufferManagerFactory;
 import org.teiid.core.util.ObjectConverterUtil;
 import org.teiid.core.util.UnitTestUtil;
@@ -244,6 +249,33 @@ public class TestODBCSocketTransport {
 		assertTrue(s.execute("select * from tables order by name"));
 		conn.setAutoCommit(true);
 	}
+	
+    @Test public void testXATransactionCycle() throws Exception {
+        PGXADataSource xaDataSource = new PGXADataSource();
+        xaDataSource.setUser("testuser");
+        xaDataSource.setPassword("testpassword");
+        xaDataSource.setServerName(odbcServer.addr.getHostName());
+        xaDataSource.setPortNumber(odbcServer.odbcTransport.getPort());
+        xaDataSource.setDatabaseName("parts");
+       
+        XAConnection xaconn = xaDataSource.getXAConnection();
+        XAResource resource = xaconn.getXAResource();
+        
+        //try to prepare without a txn
+        Statement s = xaconn.getConnection().createStatement();
+        try {
+            s.execute("prepare transaction 'foo'");
+            fail();
+        } catch (SQLException e) {
+            assertTrue(e.getMessage().contains("there is no transaction"));
+        }
+        
+        XidImpl xid = new XidImpl(1, new byte[0], new byte[0]);
+        resource.start(xid, XAResource.TMNOFLAGS);
+        resource.end(xid, XAResource.TMSUCCESS);
+        resource.prepare(xid);
+        resource.commit(xid, false);
+    }
 	
 	@Test public void testRollbackSavepointNoOp() throws Exception {
 		conn.setAutoCommit(false); 
