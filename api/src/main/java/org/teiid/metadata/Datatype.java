@@ -22,10 +22,11 @@
 
 package org.teiid.metadata;
 
+import org.teiid.core.TeiidRuntimeException;
 import org.teiid.metadata.BaseColumn.NullType;
 import org.teiid.metadata.Column.SearchType;
 
-public class Datatype extends AbstractMetadataRecord {
+public class Datatype extends AbstractMetadataRecord implements Cloneable {
 	
 	private static final long serialVersionUID = -7839335802224393230L;
 	
@@ -255,6 +256,15 @@ public class Datatype extends AbstractMetadataRecord {
         sb.append(", ObjectID="); //$NON-NLS-1$
         sb.append(getUUID());
         return sb.toString();
+    }
+    
+    @Override
+    public Datatype clone() {
+        try {
+            return (Datatype) super.clone();
+        } catch (CloneNotSupportedException e) {
+            throw new TeiidRuntimeException(e);
+        }
     }
 
 }

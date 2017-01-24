@@ -230,7 +230,7 @@ public class IndexMetadataRepository extends MetadataRepository {
 			getProcedures(s);
 			Map<String, AbstractMetadataRecord> uuidToRecord = getByType(MetadataConstants.RECORD_TYPE.DATATYPE);
 			for (AbstractMetadataRecord datatypeRecordImpl : uuidToRecord.values()) {
-				factory.addDatatype((Datatype) datatypeRecordImpl);
+				factory.addEnterpriseDatatype((Datatype) datatypeRecordImpl);
 			}
 			factory.setSchema(s);
 			return;

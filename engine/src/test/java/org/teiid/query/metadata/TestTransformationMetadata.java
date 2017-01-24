@@ -169,6 +169,7 @@ public class TestTransformationMetadata {
 		mf.addColumn("test", "string", t);
 		Datatype unknown = new Datatype();
 		unknown.setName("unknown");
+		unknown.setUUID("1");
 		mf.addEnterpriseDatatype(unknown);
 		Column col = mf.addColumn("arg", "string", t);
 		col.setDatatype(unknown);
@@ -182,7 +183,7 @@ public class TestTransformationMetadata {
 		mf1.correctDatatypes(mf.getDataTypes(), mf.getBuiltinDataTypes());
 		
 		assertSame(mf.getBuiltinDataTypes().get(dt.getName()), column.getDatatype());
-		assertNotNull(mf1.getEnterpriseDatatype("unknown"));
+		assertNotNull(mf1.getEnterpriseDatatype("1"));
 	}
 	
 }
