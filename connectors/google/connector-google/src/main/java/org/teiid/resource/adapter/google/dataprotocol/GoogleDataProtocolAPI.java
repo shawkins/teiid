@@ -39,6 +39,7 @@ import org.apache.http.impl.client.DefaultHttpClient;
 import org.teiid.logging.LogConstants;
 import org.teiid.logging.LogManager;
 import org.teiid.resource.adapter.google.auth.AuthHeaderFactory;
+import org.teiid.translator.google.api.GoogleJSONParser;
 import org.teiid.translator.google.api.SpreadsheetAuthException;
 import org.teiid.translator.google.api.SpreadsheetOperationException;
 import org.teiid.translator.google.api.metadata.Column;

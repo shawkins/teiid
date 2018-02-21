@@ -30,7 +30,7 @@ import java.util.Map;
 
 import org.junit.Test;
 import org.teiid.query.unittest.TimestampUtil;
-import org.teiid.resource.adapter.google.dataprotocol.GoogleJSONParser;
+import org.teiid.translator.google.api.GoogleJSONParser;
 
 @SuppressWarnings("nls")
 public class GoogleJSONParserTest {

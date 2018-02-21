@@ -17,6 +17,8 @@
     <module>translator-google</module>
     <module>connector-google</module>
     <module>feature-pack-google</module>
+    <module>connector-google-4</module>
+    <module>feature-pack-google-4</module>
   </modules>
 
 </project>

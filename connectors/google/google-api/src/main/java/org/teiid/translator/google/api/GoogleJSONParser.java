@@ -1,4 +1,4 @@
-package org.teiid.resource.adapter.google.dataprotocol;
+package org.teiid.translator.google.api;
 
 import java.io.IOException;
 import java.io.PushbackReader;
@@ -11,7 +11,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 
 import org.teiid.core.util.StringUtil;
-import org.teiid.translator.google.api.SpreadsheetOperationException;
 
 /**
  * Parsing google json is a little non-standard.  They assume a js binding, so array syntax, strings, and date are used.
