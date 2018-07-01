@@ -47,6 +47,8 @@ import org.teiid.translator.ExecutionContext;
 import org.teiid.translator.TranslatorException;
 import org.teiid.translator.UpdateExecution;
 import org.teiid.translator.infinispan.hotrod.InfinispanUpdateVisitor.OperationType;
+import org.teiid.translator.infinispan.hotrod.events.CacheEventListenerInterface;
+import org.teiid.translator.infinispan.hotrod.events.EventMonitor;
 
 
 public class InfinispanUpdateExecution implements UpdateExecution {
@@ -56,6 +58,7 @@ public class InfinispanUpdateExecution implements UpdateExecution {
     private ExecutionContext executionContext;
     private RuntimeMetadata metadata;
     private boolean useAliasCache;
+    private CacheEventListenerInterface eventListener;
 
     public InfinispanUpdateExecution(Command command, ExecutionContext executionContext, RuntimeMetadata metadata,
             InfinispanConnection connection, boolean useAliasCache) throws TranslatorException {
@@ -135,6 +138,7 @@ public class InfinispanUpdateExecution implements UpdateExecution {
 
             // if the message in defined in different cache than the default, switch it out now.
 			final RemoteCache<Object, Object> cache = InfinispanQueryExecution.getCache(table, connection);
+	        eventListener = EventMonitor.getListenerInstance(cache.getName());
 
             if (visitor.getOperationType() == OperationType.DELETE) {
             	paginateDeleteResults(cache, visitor.getDeleteQuery(), new Task() {
@@ -143,11 +147,13 @@ public class InfinispanUpdateExecution implements UpdateExecution {
                         if (visitor.isNestedOperation()) {
                             String childName = ProtobufMetadataProcessor.getMessageName(visitor.getQueryTable());
                             InfinispanDocument document = (InfinispanDocument)row;
+                            eventListener.addEvent(document.getProperties().get(PK));
                             cache.replace(document.getProperties().get(PK), document);
                             // false below means count that not matched, i.e. deleted count
                             updateCount = updateCount + document.getUpdateCount(childName, false);
                         } else {
                             Object key = ((Object[])row)[0];
+                            eventListener.addEvent(key);
                             cache.remove(key);
                             updateCount++;
                         }
@@ -160,6 +166,7 @@ public class InfinispanUpdateExecution implements UpdateExecution {
                         InfinispanDocument previous = (InfinispanDocument)row;
                         Object key = previous.getProperties().get(PK);
                         int count = previous.merge(visitor.getInsertPayload());
+                        eventListener.addEvent(key);
                         cache.replace(key, previous);
                         updateCount = updateCount + count;
                     }
@@ -197,8 +204,10 @@ public class InfinispanUpdateExecution implements UpdateExecution {
 		    String childName = ProtobufMetadataProcessor.getMessageName(visitor.getQueryTable());
 		    previous.addChildDocument(childName, visitor.getInsertPayload().getChildDocuments(childName).get(0));
 		    if (upsert) {
+		    	eventListener.addEvent(visitor.getIdentity());
 		    	previous = (InfinispanDocument) cache.replace(visitor.getIdentity(), previous);
 		    } else {
+		    	eventListener.addEvent(visitor.getIdentity());
 		    	previous = (InfinispanDocument) cache.put(visitor.getIdentity(), previous);			
 		    }
 		    this.updateCount++;
@@ -244,9 +253,11 @@ public class InfinispanUpdateExecution implements UpdateExecution {
 					InfinispanPlugin.Util.gs(InfinispanPlugin.Event.TEIID25005, previous.getName(), rowKey));
 		}
 		if (upsert && previous != null) {
+			eventListener.addEvent(rowKey);
 			previous.merge(row);
 			previous = (InfinispanDocument) cache.replace(rowKey, previous);
 		} else {
+			eventListener.addEvent(rowKey);
 			previous = row;
 			previous = (InfinispanDocument) cache.put(rowKey, previous);
 		}
@@ -330,6 +341,7 @@ public class InfinispanUpdateExecution implements UpdateExecution {
 		
 		@Override
 		public long run(Map<Object, InfinispanDocument> rows, boolean upsert) throws TranslatorException {
+			eventListener.addEvents(rows.keySet());
 			this.cache.putAll(rows);
 			return rows.size();
 		}

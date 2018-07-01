@@ -25,16 +25,21 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.infinispan.client.hotrod.RemoteCache;
 import org.infinispan.commons.api.BasicCache;
 import org.teiid.infinispan.api.InfinispanConnection;
 import org.teiid.language.Argument;
 import org.teiid.language.Command;
+import org.teiid.logging.LogConstants;
+import org.teiid.logging.LogManager;
 import org.teiid.metadata.RuntimeMetadata;
 import org.teiid.metadata.Table;
 import org.teiid.translator.DataNotAvailableException;
 import org.teiid.translator.ExecutionContext;
 import org.teiid.translator.ProcedureExecution;
 import org.teiid.translator.TranslatorException;
+import org.teiid.translator.infinispan.hotrod.events.CacheEventListenerInterface;
+import org.teiid.translator.infinispan.hotrod.events.EventMonitor;
 
 
 public class InfinispanDirectQueryExecution implements ProcedureExecution {
@@ -65,14 +70,59 @@ public class InfinispanDirectQueryExecution implements ProcedureExecution {
     	Matcher m = truncatePattern.matcher(command);
     	if (m.matches()) {
     		String tableName =  m.group(1);
-    		clearContents(aliasCache, tableName);
+
+    		RemoteCache c = (RemoteCache) getCacheForTableName(aliasCache, tableName);
+    		
+       		// clear it out, in case the last time run it failed or was cancelled in the middle
+    		// and do this before calling clear so that it doesn't trigger additional events
+    		EventMonitor.addListenerInstance(c);
+    		c.clear();
+    		
+    		// register listener	
+		    LogManager.logTrace(LogConstants.CTX_CONNECTOR, "JDG Cache Monitoring - Register Listener for cache - " + c.getName());
+
+    		
     		return;
+
     	} 
         
     	m = renamePattern.matcher(command);
     	if (m.matches()) {
     		String tableOne = m.group(1);
     		String tableTwo = m.group(2);
+    		
+    		RemoteCache c = (RemoteCache) getCacheForTableName(aliasCache, tableOne);
+    		
+    		CacheEventListenerInterface cem = EventMonitor.getListenerInstance(c.getName());
+    		
+    		if (cem != null && cem.eventsMonitored()) {
+	    		// check if all the pre-events have completed
+	    		int remainingEvents = cem.getEventCount();
+	    		int sleep=20000;
+	    		while (cem.getEventCount() > 0) {
+	    			
+	    			try {
+	    			    LogManager.logTrace(LogConstants.CTX_CONNECTOR, "JDG Cache Monitoring - Waiting for cache to process # events - " + cem.getEventCount());
+
+						Thread.sleep(sleep);
+					} catch (InterruptedException e) {
+					}
+	    			
+	    			int re = cem.getEventCount();
+	    			if (remainingEvents == re) {
+	    				throw new TranslatorException(InfinispanPlugin.Event.TEIID25020,
+	        					InfinispanPlugin.Util.gs(InfinispanPlugin.Event.TEIID25020, re));	    				
+	    			}
+	    			remainingEvents = re;
+	    			sleep = re * 1000;
+	    		}
+	    		
+			    LogManager.logTrace(LogConstants.CTX_CONNECTOR, "JDG Cache Monitoring - Events processed for cache - " + c.getName() + ", enable cache rename");
+
+    		} 
+    		
+    		// reset the monitoring before clearing is done, so that the events are not monitored or logged
+    		cem.reset(); 		
     		
     		String aliasName = getAliasName(context, aliasCache, tableOne);
     		if (aliasName.equals(tableOne)) {
@@ -92,8 +142,13 @@ public class InfinispanDirectQueryExecution implements ProcedureExecution {
 		throw new TranslatorException(InfinispanPlugin.Event.TEIID25016,
 				InfinispanPlugin.Util.gs(InfinispanPlugin.Event.TEIID25016, command));
     }
-
-	private void clearContents(BasicCache<String, String> aliasCache, String tableName) throws TranslatorException {
+    
+	private void clearContents(BasicCache<String, String> aliasCache, String tableName) throws TranslatorException {		
+		BasicCache<Object, Object> cache = getCacheForTableName(aliasCache, tableName);
+		cache.clear();
+	}
+	
+	private BasicCache<Object, Object> getCacheForTableName(BasicCache<String, String> aliasCache, String tableName) throws TranslatorException {
 		tableName = getAliasName(context, aliasCache, tableName);
 		Table table = metadata.getTable(tableName);
 		String cacheName = ProtobufMetadataProcessor.getCacheName(table);
@@ -102,7 +157,7 @@ public class InfinispanDirectQueryExecution implements ProcedureExecution {
 			throw new TranslatorException(InfinispanPlugin.Event.TEIID25014,
 					InfinispanPlugin.Util.gs(InfinispanPlugin.Event.TEIID25014, tableName));
 		}
-		cache.clear();
+		return cache;
 	}
 
 	static String getAliasName(ExecutionContext context, BasicCache<String, String> aliasCache, String alias)
