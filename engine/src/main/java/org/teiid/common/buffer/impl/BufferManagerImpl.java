@@ -19,19 +19,22 @@
 package org.teiid.common.buffer.impl;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.ObjectInput;
-import java.io.ObjectInputStream;
 import java.io.ObjectOutput;
-import java.io.ObjectOutputStream;
-import java.io.OutputStream;
-import java.io.Serializable;
 import java.lang.ref.PhantomReference;
 import java.lang.ref.Reference;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.SoftReference;
 import java.lang.ref.WeakReference;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.ListIterator;
+import java.util.Map;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -57,9 +60,7 @@ import org.teiid.logging.LogConstants;
 import org.teiid.logging.LogManager;
 import org.teiid.logging.MessageLevel;
 import org.teiid.query.QueryPlugin;
-import org.teiid.query.ReplicatedObject;
 import org.teiid.query.processor.relational.ListNestedSortComparator;
-import org.teiid.query.sql.symbol.ElementSymbol;
 import org.teiid.query.sql.symbol.Expression;
 import org.teiid.query.util.CommandContext;
 import org.teiid.query.util.Options;
@@ -75,7 +76,7 @@ import org.teiid.query.util.Options;
  *       
  * TODO: add a pre-fetch for tuplebuffers or some built-in correlation logic with the queue.      
  */
-public class BufferManagerImpl implements BufferManager, ReplicatedObject<String> {
+public class BufferManagerImpl implements BufferManager {
 
 	private static final int SYSTEM_OVERHEAD_MEGS = 150;
 
@@ -1248,7 +1249,7 @@ public class BufferManagerImpl implements BufferManager, ReplicatedObject<String
 	}
 	
 	@Override
-	public void distributeTupleBuffer(String uuid, TupleBuffer tb) {
+	public void trackTupleBuffer(String uuid, TupleBuffer tb) {
 		tb.setId(uuid);
 		addTupleBuffer(tb);
 	}
@@ -1285,94 +1286,6 @@ public class BufferManagerImpl implements BufferManager, ReplicatedObject<String
 		this.useWeakReferences = useWeakReferences;
 	}	
 	
-	@Override
-	public void getState(OutputStream ostream) {
-	}
-	
-	@Override
-	public void getState(String state_id, OutputStream ostream) {
-		TupleBuffer buffer = this.getTupleBuffer(state_id);
-		if (buffer != null) {
-			try {
-				ObjectOutputStream out = new ObjectOutputStream(ostream);
-				getTupleBufferState(out, buffer);
-				out.flush();
-			} catch (TeiidComponentException e) {
-				 throw new TeiidRuntimeException(QueryPlugin.Event.TEIID30054, e);
-			} catch (IOException e) {
-				 throw new TeiidRuntimeException(QueryPlugin.Event.TEIID30055, e);
-			}
-		}
-	}
-
-	private void getTupleBufferState(ObjectOutputStream out, TupleBuffer buffer) throws TeiidComponentException, IOException {
-		out.writeLong(buffer.getRowCount());
-		out.writeInt(buffer.getBatchSize());
-		out.writeObject(buffer.getTypes());
-		for (int row = 1; row <= buffer.getRowCount(); row+=buffer.getBatchSize()) {
-			TupleBatch b = buffer.getBatch(row);
-			BatchSerializer.writeBatch(out, buffer.getTypes(), b.getTuples());
-		}
-	}
-
-	@Override
-	public void setState(InputStream istream) {
-	}	
-	
-	@Override
-	public void setState(String state_id, InputStream istream) {
-		TupleBuffer buffer = this.getTupleBuffer(state_id);
-		if (buffer == null) {
-			try {
-				ObjectInputStream in = new ObjectInputStream(istream);
-				setTupleBufferState(state_id, in);
-			} catch (IOException e) {
-				 throw new TeiidRuntimeException(QueryPlugin.Event.TEIID30056, e);
-			} catch(ClassNotFoundException e) {
-				 throw new TeiidRuntimeException(QueryPlugin.Event.TEIID30057, e);
-			} catch(TeiidComponentException e) {
-				 throw new TeiidRuntimeException(QueryPlugin.Event.TEIID30058, e);
-			}
-		}
-	}
-
-	private void setTupleBufferState(String state_id, ObjectInputStream in) throws IOException, ClassNotFoundException, TeiidComponentException {
-		long rowCount = in.readLong();
-		int batchSize = in.readInt();
-		String[] types = (String[])in.readObject();
-		
-		List<ElementSymbol> schema = new ArrayList<ElementSymbol>(types.length);
-		for (int i = 0; i < types.length; i++) {
-			ElementSymbol es = new ElementSymbol("x"); //$NON-NLS-1$
-			es.setType(DataTypeManager.getDataTypeClass(types[i]));
-			schema.add(es);
-		}
-		TupleBuffer buffer = createTupleBuffer(schema, "cached", TupleSourceType.FINAL); //$NON-NLS-1$
-		buffer.setBatchSize(batchSize);
-		buffer.setId(state_id);
-		
-		for (int row = 1; row <= rowCount; row+=batchSize) {
-			List<List<Object>> batch = BatchSerializer.readBatch(in, types);
-			for (int i = 0; i < batch.size(); i++) {
-				buffer.addTuple(batch.get(i));
-			}
-		}
-		if (buffer.getRowCount() != rowCount) {					
-			buffer.remove();
-			throw new IOException(QueryPlugin.Util.getString("not_found_cache")); //$NON-NLS-1$
-		}	
-		buffer.close();
-		addTupleBuffer(buffer);
-	}
-
-	@Override
-	public void setAddress(Serializable address) {
-	}
-
-	@Override
-	public void droppedMembers(Collection<Serializable> addresses) {
-	}	
-
 	public void setInlineLobs(boolean inlineLobs) {
 		this.inlineLobs = inlineLobs;
 	}
@@ -1392,11 +1305,6 @@ public class BufferManagerImpl implements BufferManager, ReplicatedObject<String
 	
 	public long getActiveBatchBytes() {
 		return activeBatchBytes.get();
-	}
-	
-	@Override
-	public boolean hasState(String stateId) {
-		return this.getTupleBuffer(stateId) != null;
 	}
 	
 	public long getReferenceHits() {

@@ -91,7 +91,7 @@ public class TestCachedResults {
 		RealMetadataFactory.buildWorkContext(RealMetadataFactory.exampleBQT());
 		
 		BufferManager bm2 = fbs.getBufferManager();
-		bm2.distributeTupleBuffer(results.getId(), distributedTb);
+		bm2.trackTupleBuffer(results.getId(), distributedTb);
 		
 		assertTrue(cachedResults.restore(bm2));
 		

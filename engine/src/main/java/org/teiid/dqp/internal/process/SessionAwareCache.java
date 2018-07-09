@@ -56,7 +56,6 @@ public class SessionAwareCache<T> {
 	}
 
 	private Cache<CacheID, T> localCache;
-	private Cache<CacheID, T> distributedCache;
 	
 	private long modTime;
 	private Type type;
@@ -71,21 +70,10 @@ public class SessionAwareCache<T> {
 		assert (cacheFactory != null);
 		
 		this.localCache = cacheFactory.get(cacheName); 
-		
-		if (type == Type.PREPAREDPLAN) {
-			this.distributedCache = localCache;
-		}
-		else {
-			this.distributedCache = cacheFactory.get(cacheName+REPL); 
-			if (this.distributedCache == null && this.localCache != null) {
-				this.distributedCache = this.localCache;
-			}
-		}
 		this.modTime = maxStaleness * 1000;
 		this.type = type;
 		
 		assert (this.localCache != null);
-		assert (this.distributedCache != null);
 	}	
 	
 	public T get(CacheID id){
@@ -99,11 +87,11 @@ public class SessionAwareCache<T> {
 			id.setSessionId(null);
 			
 			id.setUserName(id.originalUserName);
-			result = distributedCache.get(id);
+			result = localCache.get(id);
 			
 			if (result == null) {
 				id.setUserName(null);
-				result = distributedCache.get(id);
+				result = localCache.get(id);
 			}
 			
 			if (result instanceof Cachable) {
@@ -120,11 +108,7 @@ public class SessionAwareCache<T> {
 				AccessInfo info = c.getAccessInfo();
 				if (info != null && !info.validate(type == Type.RESULTSET, modTime)) {
 					LogManager.logTrace(LogConstants.CTX_DQP, "Invalidating cache entry", id); //$NON-NLS-1$
-					if (id.getSessionId() == null) {
-						this.distributedCache.remove(id);
-					} else {
-						this.localCache.remove(id);
-					}
+					this.localCache.remove(id);
 					return null;
 				}
 			}
@@ -149,10 +133,7 @@ public class SessionAwareCache<T> {
 	}
 	
 	public int getTotalCacheEntries() {
-		if (this.localCache == this.distributedCache) {
-			return this.localCache.size();
-		}
-		return localCache.size() + distributedCache.size();
+		return this.localCache.size();
 	}
 	
 	public T remove(CacheID id, Determinism determinismLevel){
@@ -169,9 +150,8 @@ public class SessionAwareCache<T> {
 		else {
 			id.setUserName(null);
 		}
-		
-		LogManager.logTrace(LogConstants.CTX_DQP, "Removing from global/distributed cache", id); //$NON-NLS-1$
-		return this.distributedCache.remove(id);
+		LogManager.logTrace(LogConstants.CTX_DQP, "Removing from session/local cache", id); //$NON-NLS-1$
+		return this.localCache.remove(id);
 	}
 	
 	public void put(CacheID id, Determinism determinismLevel, T t, Long ttl){
@@ -208,8 +188,8 @@ public class SessionAwareCache<T> {
 			}
 			
 			if (insert) {
-				LogManager.logTrace(LogConstants.CTX_DQP, "Adding to global/distributed cache", id); //$NON-NLS-1$
-				this.distributedCache.put(id, t, ttl);
+			    LogManager.logTrace(LogConstants.CTX_DQP, "Adding to session/local cache", id); //$NON-NLS-1$
+				this.localCache.put(id, t, ttl);
 			}
 		}
 	}
@@ -276,7 +256,6 @@ public class SessionAwareCache<T> {
 	 */
 	public void clearAll(){
 		this.localCache.clear();
-		this.distributedCache.clear();
 		this.totalRequests.set(0);
 		this.cacheHit.set(0);
 		this.cachePuts.set(0);
@@ -289,7 +268,6 @@ public class SessionAwareCache<T> {
 
 	public void clearForVDB(VDBKey vdbKey) {
 		clearCache(this.localCache, vdbKey);
-		clearCache(this.distributedCache, vdbKey);
 	}
 	
 	private void clearCache(Cache<CacheID, T> cache, VDBKey vdbKey) {
@@ -409,7 +387,7 @@ public class SessionAwareCache<T> {
     }    
     
 	public boolean isTransactional() {
-		return this.localCache.isTransactional() || this.distributedCache.isTransactional();
+		return this.localCache.isTransactional();
 	}
 	
 	public CacheStatisticsMetadata buildCacheStats(String name) {

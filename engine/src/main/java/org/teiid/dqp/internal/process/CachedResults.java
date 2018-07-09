@@ -23,6 +23,8 @@ import java.io.Serializable;
 import org.teiid.api.exception.query.QueryParserException;
 import org.teiid.api.exception.query.QueryResolverException;
 import org.teiid.cache.Cachable;
+import org.teiid.cache.Cache;
+import org.teiid.common.buffer.TupleBatch;
 import org.teiid.common.buffer.TupleBuffer;
 import org.teiid.common.buffer.TupleBufferCache;
 import org.teiid.core.TeiidComponentException;
@@ -83,7 +85,7 @@ public class CachedResults implements Serializable, Cachable {
 	@Override
 	public boolean prepare(TupleBufferCache bufferManager) {
 		Assertion.assertTrue(!this.results.isForwardOnly());
-		bufferManager.distributeTupleBuffer(this.results.getId(), results);
+		bufferManager.trackTupleBuffer(this.results.getId(), results);
 		return true;
 	}
 

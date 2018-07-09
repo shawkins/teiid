@@ -18,14 +18,10 @@
 
 package org.teiid.common.buffer;
 
-import org.teiid.Replicated;
-import org.teiid.Replicated.ReplicationMode;
-
 public interface TupleBufferCache {
 	
-	@Replicated(replicateState=ReplicationMode.PULL)
 	TupleBuffer getTupleBuffer(String id);
 	
-	void distributeTupleBuffer(String uuid, TupleBuffer tb);
+	void trackTupleBuffer(String uuid, TupleBuffer tb);
 
 }

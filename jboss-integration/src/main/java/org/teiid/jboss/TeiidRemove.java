@@ -39,7 +39,6 @@ class TeiidRemove extends AbstractRemoveStepHandler {
 		context.removeService(TeiidServiceNames.ENGINE);
 		context.removeService(TeiidServiceNames.CACHE_PREPAREDPLAN);
 		context.removeService(TeiidServiceNames.CACHE_RESULTSET);
-		context.removeService(TeiidServiceNames.TUPLE_BUFFER);
 		context.removeService(TeiidServiceNames.BUFFER_MGR);
 		context.removeService(TeiidServiceNames.BUFFER_DIR);
 		context.removeService(TeiidServiceNames.OBJECT_SERIALIZER);
