@@ -20,11 +20,6 @@ package org.teiid.systemmodel;
 
 import static org.junit.Assert.*;
 
-import java.io.InputStream;
-import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.lang.reflect.Proxy;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
@@ -50,8 +45,6 @@ import org.teiid.metadata.FunctionMethod.Determinism;
 import org.teiid.metadata.FunctionMethod.PushDown;
 import org.teiid.metadata.FunctionParameter;
 import org.teiid.metadata.TableStats;
-import org.teiid.query.ObjectReplicator;
-import org.teiid.query.ReplicatedObject;
 import org.teiid.runtime.EmbeddedConfiguration;
 import org.teiid.translator.TranslatorException;
 
@@ -192,7 +185,7 @@ public class TestReplication {
 		server2 = createServer("infinispan-replicated-config-1.xml", "tcp-shared.xml");
 		
 		//add a replicator to kill transfers
-		final ObjectReplicator or = server2.getObjectReplicator();
+		/*final ObjectReplicator or = server2.getObjectReplicator();
 		server2.setObjectReplicator(new ObjectReplicator() {
 			
 			@Override
@@ -220,7 +213,7 @@ public class TestReplication {
 				});
 				return or.replicate(id, iface, o, startTimeout);
 			}
-		});
+		});*/
     	deployLargeVDB(server2);    	
 
 		Connection c2 = server2.createConnection("jdbc:teiid:large");
@@ -313,7 +306,7 @@ public class TestReplication {
 
 		EmbeddedConfiguration config = new EmbeddedConfiguration();
 		config.setInfinispanConfigFile(ispn);
-		config.setJgroupsConfigFile(jgroups);
+		//config.setJgroupsConfigFile(jgroups);
 		config.setTransactionManager(new DummyTransactionManager());
 		server.start(config, true);
 		return server;

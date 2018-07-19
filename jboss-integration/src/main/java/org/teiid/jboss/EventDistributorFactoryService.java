@@ -24,13 +24,11 @@ import org.jboss.msc.service.StopContext;
 import org.jboss.msc.value.InjectedValue;
 import org.teiid.deployers.VDBRepository;
 import org.teiid.dqp.internal.process.DQPCore;
-import org.teiid.query.ObjectReplicator;
 import org.teiid.services.AbstractEventDistributorFactoryService;
 import org.teiid.services.InternalEventDistributorFactory;
 
 public class EventDistributorFactoryService extends AbstractEventDistributorFactoryService implements Service<InternalEventDistributorFactory> {
 	
-	InjectedValue<ObjectReplicator> objectReplicatorInjector = new InjectedValue<ObjectReplicator>();
 	InjectedValue<VDBRepository> vdbRepositoryInjector = new InjectedValue<VDBRepository>();
 	DQPCore dqpCore;
 		
@@ -42,11 +40,6 @@ public class EventDistributorFactoryService extends AbstractEventDistributorFact
 	@Override
 	public void stop(StopContext context) {
 		stop();
-	}
-	
-	@Override
-	protected ObjectReplicator getObjectReplicator() {
-		return objectReplicatorInjector.getValue();
 	}
 	
 	@Override

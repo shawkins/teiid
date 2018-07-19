@@ -15,18 +15,6 @@ connect
 /subsystem=logging/logger=org.teiid.AUDIT_LOG:add 
 /subsystem=logging/logger=org.teiid.AUDIT_LOG:write-attribute(name="level", value="WARN")
 
-/subsystem=jgroups/channel=ee/fork=teiid-cluster:add()
-
-batch
-/subsystem=infinispan/cache-container=teiid-cache:add()
-/subsystem=infinispan/cache-container=teiid-cache/transport=jgroups:add(lock-timeout=60000)
-/subsystem=infinispan/cache-container=teiid-cache/replicated-cache=resultset-repl:add(mode=SYNC)
-/subsystem=infinispan/cache-container=teiid-cache/replicated-cache=resultset-repl/component=locking:add(isolation=READ_COMMITTED)
-/subsystem=infinispan/cache-container=teiid-cache/replicated-cache=resultset-repl/component=expiration:add(lifespan=7200000)
-/subsystem=infinispan/cache-container=teiid-cache/replicated-cache=resultset-repl/component=eviction:add(max-entries=1024, strategy=LIRS)
-/subsystem=infinispan/cache-container=teiid-cache/replicated-cache=resultset-repl/component=transaction:add(mode=NON_XA)
-run-batch
-
 batch
 /subsystem=infinispan/cache-container=teiid-cache/local-cache=resultset:add()
 /subsystem=infinispan/cache-container=teiid-cache/local-cache=resultset/component=locking:add(isolation=READ_COMMITTED)
@@ -47,7 +35,7 @@ run-batch
 /subsystem=security/security-domain=teiid-security/authentication=classic:add()
 /subsystem=security/security-domain=teiid-security/authentication=classic/login-module=RealmDirect:add(code=RealmDirect, flag=sufficient, module-options=[("password-stacking"=>"useFirstPass")])
 
-/subsystem=teiid:add(authentication-security-domain=teiid-security, resultset-cache-infinispan-container=teiid-cache, distributed-cache-jgroups-stack=teiid-cluster, preparedplan-cache-infinispan-container=teiid-cache, policy-decider-module=org.jboss.teiid, buffer-service-max-buffer-space=51200)
+/subsystem=teiid:add(authentication-security-domain=teiid-security, resultset-cache-infinispan-container=teiid-cache, preparedplan-cache-infinispan-container=teiid-cache, policy-decider-module=org.jboss.teiid, buffer-service-max-buffer-space=51200)
 /subsystem=teiid/transport=local:add()
 /subsystem=teiid/transport=odata:add()
 /subsystem=teiid/transport=jdbc:add(protocol=teiid, socket-binding=teiid-jdbc)

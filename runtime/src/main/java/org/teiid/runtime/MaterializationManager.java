@@ -33,7 +33,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.teiid.adminapi.VDB.Status;
-import org.teiid.adminapi.impl.ModelMetaData;
 import org.teiid.adminapi.impl.VDBMetaData;
 import org.teiid.client.util.ResultsFuture;
 import org.teiid.client.util.ResultsFuture.CompletionListener;
@@ -52,10 +51,8 @@ import org.teiid.metadata.Table;
 import org.teiid.query.metadata.MaterializationMetadataRepository;
 import org.teiid.query.metadata.TransformationMetadata;
 import org.teiid.query.tempdata.TempTableDataManager;
-import org.teiid.runtime.NodeTracker.NodeListener;
-import org.teiid.vdb.runtime.VDBKey;
 
-public abstract class MaterializationManager implements VDBLifeCycleListener, NodeListener {
+public abstract class MaterializationManager implements VDBLifeCycleListener {
 	
 	private interface MaterializationAction {
 		void process(Table table);
@@ -250,11 +247,11 @@ public abstract class MaterializationManager implements VDBLifeCycleListener, No
     public int resetPendingJob(final VDBMetaData vdb, final Table table, String nodeName){
         try {
             String statusTable = table.getProperty(MaterializationMetadataRepository.MATVIEW_STATUS_TABLE, false);
-            String updateStatusTable = "UPDATE "+statusTable+" SET LOADSTATE='NEEDS_LOADING' "
-                    + "WHERE LOADSTATE = 'LOADING' AND NODENAME = '"+nodeName+"' "
-                    + "AND NAME = '"+table.getName()+"'";
+            String updateStatusTable = "UPDATE "+statusTable+" SET LOADSTATE='NEEDS_LOADING' " //$NON-NLS-1$ //$NON-NLS-2$
+                    + "WHERE LOADSTATE = 'LOADING' AND NODENAME = '"+nodeName+"' " //$NON-NLS-1$ //$NON-NLS-2$
+                    + "AND NAME = '"+table.getName()+"'"; //$NON-NLS-1$ //$NON-NLS-2$
             List<Map<String, String>> results = executeQuery(vdb, updateStatusTable);
-            String count = results.get(0).get("update-count");
+            String count = results.get(0).get("update-count"); //$NON-NLS-1$
             return Integer.parseInt(count);
         } catch (SQLException e) {
             LogManager.logWarning(LogConstants.CTX_MATVIEWS, e, e.getMessage());
@@ -501,51 +498,4 @@ public abstract class MaterializationManager implements VDBLifeCycleListener, No
         return rows;
     }
     
-    @Override
-    public void nodeJoined(String nodeName) {
-        // may be nothing to do for now, we can envision replicating cache pro actively.
-    }
-
-    @Override
-    public void nodeDropped(String nodeName) {
-        for (VDBMetaData vdb:getVDBRepository().getVDBs()) {
-            TransformationMetadata metadata = vdb.getAttachment(TransformationMetadata.class);
-            if (metadata == null) {
-                continue;
-            }
-            
-            for (ModelMetaData model : vdb.getModelMetaDatas().values()) {
-                if (vdb.getImportedModels().contains(model.getName())) {
-                    continue;
-                }
-                
-                MetadataStore store = metadata.getMetadataStore();
-                Schema schema = store.getSchema(model.getName()); 
-                for (Table t:schema.getTables().values()) {
-                    if (t.isVirtual() && t.isMaterialized() && t.getMaterializedTable() != null) {
-                        String allow = t.getProperty(MaterializationMetadataRepository.ALLOW_MATVIEW_MANAGEMENT, false);
-                        if (allow == null || !Boolean.valueOf(allow)) {
-                            continue;
-                        }
-                        // reset the pending job if there is one.
-                        int update = resetPendingJob(vdb, t, nodeName);
-                        if (update > 0) {
-                            String ttlStr = t.getProperty(MaterializationMetadataRepository.MATVIEW_TTL, false);
-                            if (ttlStr == null) {
-                                ttlStr = String.valueOf(Long.MAX_VALUE);
-                            }
-                            if (ttlStr != null) {
-                                long ttl = Long.parseLong(ttlStr);
-                                if (ttl > 0) {
-                                    // run the job
-                                    CompositeVDB cvdb = getVDBRepository().getCompositeVDB(new VDBKey(vdb.getName(), vdb.getVersion()));
-                                    scheduleSnapshotJob(cvdb, t, ttl, 0L, JobType.ONCE);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }    
 }

@@ -18,11 +18,6 @@
 
 package org.teiid.query.tempdata;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.io.OutputStream;
 import java.io.Serializable;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
@@ -42,7 +37,6 @@ import org.teiid.api.exception.query.QueryValidatorException;
 import org.teiid.common.buffer.BufferManager;
 import org.teiid.core.TeiidComponentException;
 import org.teiid.core.TeiidProcessingException;
-import org.teiid.core.TeiidRuntimeException;
 import org.teiid.core.types.DataTypeManager;
 import org.teiid.dqp.internal.process.RequestWorkItem;
 import org.teiid.dqp.message.RequestID;
@@ -54,8 +48,6 @@ import org.teiid.metadata.BaseColumn.NullType;
 import org.teiid.metadata.Column;
 import org.teiid.metadata.KeyRecord;
 import org.teiid.metadata.Table;
-import org.teiid.query.QueryPlugin;
-import org.teiid.query.ReplicatedObject;
 import org.teiid.query.mapping.relational.QueryNode;
 import org.teiid.query.metadata.MaterializationMetadataRepository;
 import org.teiid.query.metadata.QueryMetadataInterface;
@@ -79,7 +71,7 @@ import org.teiid.query.sql.util.SymbolMap;
 import org.teiid.query.sql.visitor.ExpressionMappingVisitor;
 import org.teiid.query.tempdata.TempTableStore.TransactionMode;
 
-public class GlobalTableStoreImpl implements GlobalTableStore, ReplicatedObject<String> {
+public class GlobalTableStoreImpl implements GlobalTableStore {
 	
 	private static final String TEIID_FBI = "teiid:fbi"; //$NON-NLS-1$
 
@@ -508,150 +500,16 @@ public class GlobalTableStoreImpl implements GlobalTableStore, ReplicatedObject<
 		}
 		return pkColumns;
 	}
-
-	//begin replication methods
 	
-	@Override
-	public void setAddress(Serializable address) {
-		this.localAddress = address;
-	}
-	
-	@Override
-	public Serializable getAddress() {
-		return localAddress;
-	}
-	
-	@Override
-	public void getState(OutputStream ostream) {
-		try {
-			ObjectOutputStream oos = new ObjectOutputStream(ostream);
-			for (Map.Entry<String, TempTable> entry : tableStore.getTempTables().entrySet()) {
-				sendTable(entry.getKey(), oos, true);
-			}
-			oos.writeObject(null);
-			oos.close();
-		} catch (IOException e) {
-			 throw new TeiidRuntimeException(QueryPlugin.Event.TEIID30217, e);
-		} catch (TeiidComponentException e) {
-			 throw new TeiidRuntimeException(QueryPlugin.Event.TEIID30218, e);
-		}
-	}
+    public void setAddress(Serializable address) {
+        this.localAddress = address;
+    }
+    
+    @Override
+    public Serializable getAddress() {
+        return localAddress;
+    }
 
-	@Override
-	public void setState(InputStream istream) {
-		try {
-			ObjectInputStream ois = new ObjectInputStream(istream);
-			while (true) {
-				String tableName = (String)ois.readObject();
-				if (tableName == null) {
-					break;
-				}
-				loadTable(tableName, ois);
-			}
-			ois.close();
-		} catch (Exception e) {
-			 throw new TeiidRuntimeException(QueryPlugin.Event.TEIID30219, e);
-		}
-	}
-
-	@Override
-	public void getState(String stateId, OutputStream ostream) {
-		try {
-			ObjectOutputStream oos = new ObjectOutputStream(ostream);
-			sendTable(stateId, oos, false);
-			oos.close();
-		} catch (IOException e) {
-			 throw new TeiidRuntimeException(QueryPlugin.Event.TEIID30220, e);
-		} catch (TeiidComponentException e) {
-			 throw new TeiidRuntimeException(QueryPlugin.Event.TEIID30221, e);
-		}
-	}
-
-	private void sendTable(String stateId, ObjectOutputStream oos, boolean writeName)
-			throws IOException, TeiidComponentException {
-		TempTable tempTable = this.tableStore.getTempTable(stateId);
-		if (tempTable == null) {
-			return;
-		}
-		MatTableInfo info = getMatTableInfo(stateId);
-		if (!info.isValid()) {
-			return;
-		}
-		if (writeName) {
-			oos.writeObject(stateId);
-		}
-		oos.writeLong(info.updateTime);
-		oos.writeObject(info.loadingAddress);
-		oos.writeObject(info.state);
-		tempTable.writeTo(oos);
-	}
-
-	@Override
-	public void setState(String stateId, InputStream istream) {
-		try {
-			ObjectInputStream ois = new ObjectInputStream(istream);
-			loadTable(stateId, ois);
-			ois.close();
-		} catch (Exception e) {
-			MatTableInfo info = this.getMatTableInfo(stateId);
-			if (!info.isUpToDate()) {
-				info.setState(MatState.FAILED_LOAD, null);
-			}
-			throw new TeiidRuntimeException(QueryPlugin.Event.TEIID30222, e);
-		}
-	}
-
-	private void loadTable(String stateId, ObjectInputStream ois)
-			throws TeiidComponentException, QueryMetadataException,
-			IOException,
-			ClassNotFoundException, TeiidProcessingException {
-		LogManager.logDetail(LogConstants.CTX_DQP, "loading table from remote stream", stateId); //$NON-NLS-1$
-		long updateTime = ois.readLong();
-		Serializable loadingAddress = (Serializable) ois.readObject();
-		MatState state = (MatState)ois.readObject();
-		GroupSymbol group = new GroupSymbol(stateId);
-		if (stateId.startsWith(RelationalPlanner.MAT_PREFIX)) {
-			String viewName = stateId.substring(RelationalPlanner.MAT_PREFIX.length());
-			Object viewId = this.metadata.getGroupID(viewName);
-			group.setMetadataID(getGlobalTempTableMetadataId(viewId));
-		} else {
-			String viewName = stateId.substring(TempTableDataManager.CODE_PREFIX.length());
-			int index = viewName.lastIndexOf('.');
-			String returnElementName = viewName.substring(index + 1);
-			viewName = viewName.substring(0, index);
-			index = viewName.lastIndexOf('.');
-			String keyElementName = viewName.substring(index + 1);
-			viewName = viewName.substring(0, index);
-			group.setMetadataID(getCodeTableMetadataId(viewName, returnElementName, keyElementName, stateId));
-		}
-		TempTable tempTable = this.createMatTable(stateId, group);
-		tempTable.readFrom(ois);
-		MatTableInfo info = this.getMatTableInfo(stateId);
-		synchronized (info) {
-			swapTempTable(stateId, tempTable);
-			info.setState(state, true);
-			info.updateTime = updateTime;
-			info.loadingAddress = loadingAddress;
-		}
-	}
-
-	@Override
-	public void droppedMembers(Collection<Serializable> addresses) {
-		for (MatTableInfo info : this.matTables.values()) {
-			synchronized (info) {
-				if (info.getState() == MatState.LOADING 
-						&& addresses.contains(info.loadingAddress)) {
-					info.setState(MatState.FAILED_LOAD, null);
-				}
-			}
-		}
-	}
-	
-	@Override
-	public boolean hasState(String stateId) {
-		return this.tableStore.getTempTable(stateId) != null;
-	}
-	
 	@Override
 	public TempMetadataID getGlobalTempTableMetadataId(String matTableName) {
 		return this.tableStore.getMetadataStore().getTempGroupID(matTableName);
@@ -660,6 +518,12 @@ public class GlobalTableStoreImpl implements GlobalTableStore, ReplicatedObject<
 	@Override
 	public TempTable getTempTable(String matTableName) {
 		return this.tableStore.getTempTable(matTableName);
+	}
+	
+	@Override
+	public void stop() {
+	    // TODO Auto-generated method stub
+	    
 	}
 
 }

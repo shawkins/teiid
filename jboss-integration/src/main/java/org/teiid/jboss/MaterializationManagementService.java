@@ -27,14 +27,12 @@ import org.jboss.msc.value.InjectedValue;
 import org.teiid.deployers.VDBRepository;
 import org.teiid.dqp.internal.process.DQPCore;
 import org.teiid.runtime.MaterializationManager;
-import org.teiid.runtime.NodeTracker;
 
 class MaterializationManagementService implements Service<MaterializationManager> {
 	private ScheduledExecutorService scheduler;
 	private MaterializationManager manager;
 	protected final InjectedValue<DQPCore> dqpInjector = new InjectedValue<DQPCore>();
 	protected final InjectedValue<VDBRepository> vdbRepositoryInjector = new InjectedValue<VDBRepository>();
-	protected final InjectedValue<NodeTracker> nodeTrackerInjector = new InjectedValue<NodeTracker>();
 	private JBossLifeCycleListener shutdownListener;
 	
 	public MaterializationManagementService(JBossLifeCycleListener shutdownListener, ScheduledExecutorService scheduler) {
@@ -63,19 +61,12 @@ class MaterializationManagementService implements Service<MaterializationManager
 		
 		vdbRepositoryInjector.getValue().addListener(manager);
 		
-		if (nodeTrackerInjector.getValue() != null) {
-		    nodeTrackerInjector.getValue().addNodeListener(manager);
-		}
 	}
 
 	@Override
 	public void stop(StopContext context) {
 		scheduler.shutdownNow();
 		vdbRepositoryInjector.getValue().removeListener(manager);
-		NodeTracker value = nodeTrackerInjector.getValue();
-		if (value != null) {
-		    value.removeNodeListener(manager);
-		}
 	}
 
 	@Override

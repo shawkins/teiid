@@ -63,7 +63,6 @@ import org.teiid.client.DQP;
 import org.teiid.client.security.ILogon;
 import org.teiid.client.security.InvalidSessionException;
 import org.teiid.common.buffer.BufferManager;
-import org.teiid.common.buffer.TupleBufferCache;
 import org.teiid.core.BundleUtil.Event;
 import org.teiid.core.TeiidException;
 import org.teiid.core.TeiidRuntimeException;
@@ -111,7 +110,6 @@ import org.teiid.metadatastore.DeploymentBasedDatabaseStore;
 import org.teiid.net.ConnectionException;
 import org.teiid.net.ServerConnection;
 import org.teiid.net.socket.ObjectChannel;
-import org.teiid.query.ObjectReplicator;
 import org.teiid.query.metadata.DDLStringVisitor;
 import org.teiid.query.metadata.PureZipFileSystem;
 import org.teiid.query.metadata.SystemMetadata;
@@ -121,7 +119,6 @@ import org.teiid.query.sql.lang.Command;
 import org.teiid.query.tempdata.GlobalTableStore;
 import org.teiid.query.validator.ValidatorFailure;
 import org.teiid.query.validator.ValidatorReport;
-import org.teiid.replication.jgroups.JGroupsObjectReplicator;
 import org.teiid.services.AbstractEventDistributorFactoryService;
 import org.teiid.services.BufferServiceImpl;
 import org.teiid.services.SessionServiceImpl;
@@ -281,11 +278,6 @@ public class EmbeddedServer extends AbstractVDBDeployer implements EventDistribu
         }
         
         @Override
-        protected ObjectReplicator getObjectReplicator() {
-            return replicator;
-        }
-        
-        @Override
         protected DQPCore getDQPCore() {
             return dqp;
         }
@@ -296,7 +288,6 @@ public class EmbeddedServer extends AbstractVDBDeployer implements EventDistribu
 	private TranslatorRepository translatorRepository = new TranslatorRepository();
 	private ConcurrentHashMap<String, ConnectionFactoryProvider<?>> connectionFactoryProviders = new ConcurrentHashMap<String, ConnectionFactoryProvider<?>>();
 	protected SessionServiceImpl sessionService = new SessionServiceImpl();
-	protected ObjectReplicator replicator;
 	protected BufferServiceImpl bufferService = new BufferServiceImpl();
 	protected TransactionServerImpl transactionService = new TransactionServerImpl();
 	protected boolean waitForLoad;
@@ -326,8 +317,6 @@ public class EmbeddedServer extends AbstractVDBDeployer implements EventDistribu
 	private ScheduledExecutorService scheduler;
 	private MaterializationManager materializationMgr = null;
 	private ShutDownListener shutdownListener = new ShutDownListener();
-	private SimpleChannelFactory channelFactory;
-	private NodeTracker nodeTracker = null;
 
 	public EmbeddedServer() {
 
@@ -366,21 +355,6 @@ public class EmbeddedServer extends AbstractVDBDeployer implements EventDistribu
 		this.eventDistributorFactoryService.start();
 		this.dqp.setEventDistributor(this.eventDistributorFactoryService.getReplicatedEventDistributor());
 		this.scheduler = Executors.newScheduledThreadPool(config.getMaxAsyncThreads(), new NamedThreadFactory("Asynch Worker")); //$NON-NLS-1$
-		this.replicator = config.getObjectReplicator();
-		if (this.replicator == null && config.getJgroupsConfigFile() != null) {
-			channelFactory = new SimpleChannelFactory(config);
-			this.replicator = new JGroupsObjectReplicator(channelFactory, this.scheduler);
-			try {
-                this.nodeTracker = new NodeTracker(channelFactory.createChannel("teiid-node-tracker"), config.getNodeName()) {
-                    @Override
-                    public ScheduledExecutorService getScheduledExecutorService() {
-                        return scheduler;
-                    }
-                };
-            } catch (Exception e) {
-                LogManager.logError(LogConstants.CTX_RUNTIME, e, RuntimePlugin.Util.gs(RuntimePlugin.Event.TEIID40089));
-            }
-		}
 		this.eventDistributorFactoryService = new EmbeddedEventDistributorFactoryService();
 		//must be called after the replicator is set
         this.eventDistributorFactoryService.start();
@@ -439,9 +413,6 @@ public class EmbeddedServer extends AbstractVDBDeployer implements EventDistribu
 		this.materializationMgr = getMaterializationManager();		
 		this.repo.addListener(this.materializationMgr);
 		this.repo.setAllowEnvFunction(this.config.isAllowEnvFunction());
-		if (this.nodeTracker != null) {
-		    this.nodeTracker.addNodeListener(this.materializationMgr);
-		}
 		this.logon = new LogonImpl(sessionService, null);
 		services.registerClientService(ILogon.class, logon, LogConstants.CTX_SECURITY);
 		DQP dqpProxy = DQP.class.cast(Proxy.newProxyInstance(this.getClass().getClassLoader(), new Class[] {DQP.class}, new SessionCheckingProxy(dqp, LogConstants.CTX_DQP, MessageLevel.TRACE)));
@@ -539,9 +510,8 @@ public class EmbeddedServer extends AbstractVDBDeployer implements EventDistribu
 
 			@Override
 			public void removed(String name, CompositeVDB vdb) {
-				if (replicator != null) {
-					replicator.stop(vdb.getVDB().getAttachment(GlobalTableStore.class));
-				}
+			    GlobalTableStore gts = vdb.getVDB().getAttachment(GlobalTableStore.class);
+			    gts.stop();
 				rs.clearForVDB(vdb.getVDBKey()); 
 				ppc.clearForVDB(vdb.getVDBKey()); 
 				for (SessionMetadata session : sessionService.getSessionsLoggedInToVDB(vdb.getVDBKey())) { 
@@ -557,7 +527,7 @@ public class EmbeddedServer extends AbstractVDBDeployer implements EventDistribu
 				if (!vdb.getVDB().getStatus().equals(Status.ACTIVE)) {
 					return;
 				}
-				GlobalTableStore gts = CompositeGlobalTableStore.createInstance(vdb, dqp.getBufferManager(), replicator);
+				GlobalTableStore gts = CompositeGlobalTableStore.createInstance(vdb, dqp.getBufferManager());
 				
 				vdb.getVDB().addAttchment(GlobalTableStore.class, gts);
 			}
@@ -572,26 +542,6 @@ public class EmbeddedServer extends AbstractVDBDeployer implements EventDistribu
 
 	protected BufferService getBufferService() {
 		bufferService.start();
-		if (replicator != null) {
-			try {
-				final TupleBufferCache tbc = replicator.replicate("$BM$", TupleBufferCache.class, bufferService.getBufferManager(), 0); //$NON-NLS-1$
-				return new BufferService() {
-
-					@Override
-					public BufferManager getBufferManager() {
-						return bufferService.getBufferManager();
-					}
-
-					@Override
-					public TupleBufferCache getTupleBufferCache() {
-						return tbc;
-					}
-
-				};
-			} catch (Exception e) {
-				throw new TeiidRuntimeException(e);
-			}
-		}
 		return bufferService;
 	}
 
@@ -919,9 +869,6 @@ public class EmbeddedServer extends AbstractVDBDeployer implements EventDistribu
 	public synchronized void stop() {
 		if (running == null || !running) {
 			return;
-		}
-		if (this.channelFactory != null) {
-			this.channelFactory.stop();
 		}
         this.shutdownListener.setShutdownInProgress(true);
         this.repo.removeListener(this.materializationMgr);

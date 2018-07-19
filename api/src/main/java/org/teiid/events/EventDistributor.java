@@ -255,4 +255,5 @@ public interface EventDistributor {
      * @param tableNames
      */
     ResultsFuture<?> dataModification(String vdbName, String vdbVersion, String schema, String tableName, Object[] oldValues, Object[] newValues, String[] columnNames);
+
 }

@@ -346,4 +346,9 @@ public abstract class EventDistributorImpl implements EventDistributor {
 	public void unregister(EventListener listener) {
 		this.listeners.remove(listener);
 	}
+
+    public void stop() {
+        // TODO Auto-generated method stub
+        
+    }
 }

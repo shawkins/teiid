@@ -23,7 +23,6 @@
     "max-row-fetch-size" : 2,
     "max-source-rows-allowed" : 2,
     "max-threads" : 2,
-    "distributed-cache-jgroups-stack" : "stack",
     "preparedplan-cache-infinispan-container" : "prep-container",
     "preparedplan-cache-enable" : false,
     "preparedplan-cache-name" : "prepcache",

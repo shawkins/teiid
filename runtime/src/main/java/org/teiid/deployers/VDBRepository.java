@@ -49,7 +49,6 @@ import org.teiid.metadata.Datatype;
 import org.teiid.metadata.MetadataException;
 import org.teiid.metadata.MetadataStore;
 import org.teiid.net.ConnectionException;
-import org.teiid.query.ObjectReplicator;
 import org.teiid.query.function.SystemFunctionManager;
 import org.teiid.query.function.metadata.FunctionMetadataValidator;
 import org.teiid.query.metadata.DatabaseStore;
@@ -87,7 +86,6 @@ public class VDBRepository implements Serializable{
 	private boolean dataRolesRequired;
 	private MetadataException odbcException;
     private BufferManager bufferManager;
-    private ObjectReplicator objectReplictor;
     private DatabaseStore databaseStore;
     private boolean allowEnv = true;
 	
@@ -294,9 +292,9 @@ public class VDBRepository implements Serializable{
 		}
 		removed.getVDB().setStatus(Status.REMOVED);
         // stop object replication
-        if (this.objectReplictor != null) {
-            GlobalTableStore gts = removed.getVDB().getAttachment(GlobalTableStore.class);
-            this.objectReplictor.stop(gts);
+        GlobalTableStore gts = removed.getVDB().getAttachment(GlobalTableStore.class);
+        if (gts != null) {
+            gts.stop();
         }
 		notifyRemove(key.getName(), key.getVersion(), removed);
 		return removed.getVDB();
@@ -355,7 +353,7 @@ public class VDBRepository implements Serializable{
 				metadataAwareVDB.setStatus(Status.ACTIVE);
 				
 				// for  replication of events, temp tables and mat views
-                GlobalTableStore gts = CompositeGlobalTableStore.createInstance(v, this.bufferManager, this.objectReplictor);
+                GlobalTableStore gts = CompositeGlobalTableStore.createInstance(v, this.bufferManager);
                 metadataAwareVDB.addAttchment(GlobalTableStore.class, gts);
 				
                 if (this.databaseStore != null) {
@@ -487,10 +485,6 @@ public class VDBRepository implements Serializable{
 
     public void setBufferManager(BufferManager value) {
         this.bufferManager = value;
-    }
-
-    public void setObjectReplicator(ObjectReplicator value) {
-        this.objectReplictor = value;
     }
 
 	NavigableMap<VDBKey, CompositeVDB> getVdbRepo() {

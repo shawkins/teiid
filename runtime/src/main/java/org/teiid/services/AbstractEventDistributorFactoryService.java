@@ -17,36 +17,24 @@
  */
 package org.teiid.services;
 
-import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.lang.reflect.Proxy;
-
-import org.teiid.Replicated;
 import org.teiid.deployers.EventDistributorImpl;
 import org.teiid.deployers.VDBRepository;
 import org.teiid.dqp.internal.process.DQPCore;
 import org.teiid.events.EventDistributor;
-import org.teiid.logging.LogConstants;
-import org.teiid.logging.LogManager;
-import org.teiid.query.ObjectReplicator;
-import org.teiid.runtime.RuntimePlugin;
 
 public abstract class AbstractEventDistributorFactoryService implements InternalEventDistributorFactory {
 	
-	private EventDistributor replicatableEventDistributor;
-	private EventDistributor eventDistributorProxy;
+	private EventDistributorImpl replicatableEventDistributor;
 	
 	public InternalEventDistributorFactory getValue() throws IllegalStateException, IllegalArgumentException {
 		return this;
 	}
 	
 	protected abstract VDBRepository getVdbRepository();
-	protected abstract ObjectReplicator getObjectReplicator();
 	protected abstract DQPCore getDQPCore();
 
 	public void start() {
-		final EventDistributor ed = new EventDistributorImpl() {
+	    replicatableEventDistributor = new EventDistributorImpl() {
 			@Override
 			public VDBRepository getVdbRepository() {
 				return AbstractEventDistributorFactoryService.this.getVdbRepository();
@@ -58,44 +46,13 @@ public abstract class AbstractEventDistributorFactoryService implements Internal
 			}
 		};
 		
-		ObjectReplicator objectReplicator = getObjectReplicator();
-		// this instance is by use of teiid internally; only invokes the remote instances
-		if (objectReplicator != null) {
-			try {
-				this.replicatableEventDistributor = objectReplicator.replicate("$TEIID_ED$", EventDistributor.class, ed, 0); //$NON-NLS-1$
-			} catch (Exception e) {
-				LogManager.logError(LogConstants.CTX_RUNTIME, e, RuntimePlugin.Util.gs(RuntimePlugin.Event.TEIID40088, this));
-			}
-		}
-		
-		// for external client to call. invokes local instance and remote ones too.
-		this.eventDistributorProxy = (EventDistributor)Proxy.newProxyInstance(Thread.currentThread().getContextClassLoader(), new Class[] {EventDistributor.class}, new InvocationHandler() {
-			
-			@Override
-			public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-			    Replicated annotation = method.getAnnotation(Replicated.class);
-			    Object result = null;
-                try {
-			        if (replicatableEventDistributor == null || (annotation != null && annotation.remoteOnly())) {
-                        result = method.invoke(ed, args);
-                    } 
-                    if (replicatableEventDistributor != null) {
-    					result = method.invoke(replicatableEventDistributor, args);
-    				}
-			    } catch (InvocationTargetException e) {
-			        throw e.getTargetException();
-			    }
-				return result;
-			}
-		});		
 	}
 
 	public void stop() {
-		ObjectReplicator objectReplicator = getObjectReplicator();
-    	if (objectReplicator != null && this.replicatableEventDistributor != null) {
-    		objectReplicator.stop(this.replicatableEventDistributor);
+	    if (this.replicatableEventDistributor != null) {
+    		this.replicatableEventDistributor.stop();
     		this.replicatableEventDistributor = null;
-    	}
+	    }
 	}
 
 	@Override
@@ -105,6 +62,6 @@ public abstract class AbstractEventDistributorFactoryService implements Internal
 
 	@Override
 	public EventDistributor getEventDistributor() {
-		return eventDistributorProxy;
+		return replicatableEventDistributor;
 	}
 }

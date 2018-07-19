@@ -818,7 +818,7 @@ public class TestExternalMatViews {
 
         EmbeddedConfiguration config = new EmbeddedConfiguration();
         config.setInfinispanConfigFile(ispn);
-        config.setJgroupsConfigFile(jgroups);
+        //config.setJgroupsConfigFile(jgroups);
         config.setNodeName(nodeName);
         config.setTransactionManager(new DummyTransactionManager());
         server.start(config, true);

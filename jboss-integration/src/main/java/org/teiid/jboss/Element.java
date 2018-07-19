@@ -71,10 +71,6 @@ enum Element {
 	PPC_NAME_ATTRIBUTE("name", "preparedplan-cache-name"),
 	PPC_CONTAINER_NAME_ELEMENT("infinispan-container", "preparedplan-cache-infinispan-container"),
 	
-	// Object Replicator
-	DISTRIBUTED_CACHE("distributed-cache"),
-	DC_STACK_ATTRIBUTE("jgroups-stack", "distributed-cache-jgroups-stack"),
-	
 	// Result set cache	
 	RESULTSET_CACHE_ELEMENT("resultset-cache"),
 	RSC_ENABLE_ATTRIBUTE("enable", "resultset-cache-enable"),

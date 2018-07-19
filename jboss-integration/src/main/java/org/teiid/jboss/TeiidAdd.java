@@ -105,19 +105,14 @@ import org.teiid.events.EventDistributorFactory;
 import org.teiid.logging.LogConstants;
 import org.teiid.logging.LogManager;
 import org.teiid.net.socket.AuthenticationType;
-import org.teiid.query.ObjectReplicator;
 import org.teiid.query.function.SystemFunctionManager;
 import org.teiid.query.metadata.SystemMetadata;
-import org.teiid.replication.jgroups.JGroupsObjectReplicator;
 import org.teiid.runtime.MaterializationManager;
-import org.teiid.runtime.NodeTracker;
 import org.teiid.services.InternalEventDistributorFactory;
 import org.teiid.services.SessionServiceImpl;
 import org.teiid.translator.ExecutionFactory;
 import org.wildfly.clustering.infinispan.spi.InfinispanCacheRequirement;
 import org.wildfly.clustering.infinispan.spi.InfinispanRequirement;
-import org.wildfly.clustering.jgroups.ChannelFactory;
-import org.wildfly.clustering.jgroups.spi.JGroupsRequirement;
 
 class TeiidAdd extends AbstractAddStepHandler {
 	
@@ -143,9 +138,6 @@ class TeiidAdd extends AbstractAddStepHandler {
 		TeiidConstants.POLICY_DECIDER_MODULE_ELEMENT,
 		TeiidConstants.DATA_ROLES_REQUIRED_ELEMENT,
 		
-		// object replicator
-		TeiidConstants.DC_STACK_ATTRIBUTE,
-
 		// Buffer Service
 		TeiidConstants.USE_DISK_ATTRIBUTE,
 		TeiidConstants.INLINE_LOBS,
@@ -234,8 +226,6 @@ class TeiidAdd extends AbstractAddStepHandler {
             final ModelNode operation) throws OperationFailedException {
 		ServiceTarget target = context.getServiceTarget();
 		
-		final String nodeName = getNodeName();
-		
         Environment environment = context.getCallEnvironment();        
 		final JBossLifeCycleListener shutdownListener = new JBossLifeCycleListener(environment);
 		ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(new NamedThreadFactory("Teiid Timer")); //$NON-NLS-1$
@@ -282,7 +272,6 @@ class TeiidAdd extends AbstractAddStepHandler {
     	VDBRepositoryService vdbRepositoryService = new VDBRepositoryService(vdbRepository);
     	ServiceBuilder<VDBRepository> vdbRepoService = target.addService(TeiidServiceNames.VDB_REPO, vdbRepositoryService);
     	vdbRepoService.addDependency(TeiidServiceNames.BUFFER_MGR, BufferManager.class, vdbRepositoryService.bufferManagerInjector);
-        vdbRepoService.addDependency(DependencyType.OPTIONAL, TeiidServiceNames.OBJECT_REPLICATOR, ObjectReplicator.class, vdbRepositoryService.objectReplicatorInjector);
     	vdbRepoService.install();
 		
     	// VDB Status manager
@@ -305,25 +294,7 @@ class TeiidAdd extends AbstractAddStepHandler {
     	objectSerializerService.install();
     	
     	// Object Replicator
-    	boolean replicatorAvailable = false;
-    	if (isDefined(DC_STACK_ATTRIBUTE, operation, context)) {
-    		String stack = asString(DC_STACK_ATTRIBUTE, operation, context);
-    		
-    		replicatorAvailable = true;
-    		JGroupsObjectReplicatorService replicatorService = new JGroupsObjectReplicatorService();
-			ServiceBuilder<JGroupsObjectReplicator> serviceBuilder = target.addService(TeiidServiceNames.OBJECT_REPLICATOR, replicatorService);
-			serviceBuilder.addDependency(JGroupsRequirement.CHANNEL_FACTORY.getServiceName(context, stack), ChannelFactory.class, replicatorService.channelFactoryInjector); //$NON-NLS-1$ //$NON-NLS-2$
-			serviceBuilder.addDependency(TeiidServiceNames.THREAD_POOL_SERVICE, Executor.class,  replicatorService.executorInjector);
-			serviceBuilder.install();
-			LogManager.logInfo(LogConstants.CTX_RUNTIME, IntegrationPlugin.Util.gs(IntegrationPlugin.Event.TEIID50003));
-			
-			NodeTrackerService trackerService = new NodeTrackerService(nodeName, scheduler);
-			ServiceBuilder<NodeTracker> nodeTrackerBuilder = target.addService(TeiidServiceNames.NODE_TRACKER_SERVICE, trackerService);
-			nodeTrackerBuilder.addDependency(JGroupsRequirement.CHANNEL_FACTORY.getServiceName(context, stack), ChannelFactory.class, trackerService.channelFactoryInjector); //$NON-NLS-1$ //$NON-NLS-2$
-			nodeTrackerBuilder.install();
-    	} else {
-			LogManager.logDetail(LogConstants.CTX_RUNTIME, IntegrationPlugin.Util.getString("distributed_cache_not_enabled")); //$NON-NLS-1$
-    	}
+		LogManager.logDetail(LogConstants.CTX_RUNTIME, IntegrationPlugin.Util.getString("distributed_cache_not_enabled")); //$NON-NLS-1$
 
     	// TODO: remove verbose service by moving the buffer service from runtime project
     	RelativePathService.addService(TeiidServiceNames.BUFFER_DIR, "teiid-buffer", "jboss.server.temp.dir", target); //$NON-NLS-1$ //$NON-NLS-2$
@@ -451,7 +422,6 @@ class TeiidAdd extends AbstractAddStepHandler {
         EventDistributorFactoryService edfs = new EventDistributorFactoryService();
         ServiceBuilder<InternalEventDistributorFactory> edfsServiceBuilder = target.addService(TeiidServiceNames.EVENT_DISTRIBUTOR_FACTORY, edfs);
         edfsServiceBuilder.addDependency(TeiidServiceNames.VDB_REPO, VDBRepository.class, edfs.vdbRepositoryInjector);
-        edfsServiceBuilder.addDependency(replicatorAvailable?DependencyType.REQUIRED:DependencyType.OPTIONAL, TeiidServiceNames.OBJECT_REPLICATOR, ObjectReplicator.class, edfs.objectReplicatorInjector);
         edfs.dqpCore = engine.getValue();
         edfsServiceBuilder.install();
     	
@@ -501,7 +471,6 @@ class TeiidAdd extends AbstractAddStepHandler {
 		ServiceBuilder<MaterializationManager> matviewBuilder = target.addService(TeiidServiceNames.MATVIEW_SERVICE, matviewService);
 		matviewBuilder.addDependency(TeiidServiceNames.ENGINE, DQPCore.class,  matviewService.dqpInjector);
 		matviewBuilder.addDependency(TeiidServiceNames.VDB_REPO, VDBRepository.class, matviewService.vdbRepositoryInjector);
-		matviewBuilder.addDependency(replicatorAvailable?DependencyType.REQUIRED:DependencyType.OPTIONAL, TeiidServiceNames.NODE_TRACKER_SERVICE, NodeTracker.class, matviewService.nodeTrackerInjector);
 		matviewBuilder.install();
 		
         // Register VDB deployer

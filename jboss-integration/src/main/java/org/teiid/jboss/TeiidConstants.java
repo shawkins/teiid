@@ -288,14 +288,6 @@ public class TeiidConstants {
         .setAllowExpression(false)
         .build();	
 	
-	// Object Replicator
-	// DISTRIBUTED_CACHE("distributed-cache",true, false, MeasurementUnit.NONE);
-	public static SimpleAttributeDefinition DC_STACK_ATTRIBUTE = new SimpleAttributeDefinitionBuilder(Element.DC_STACK_ATTRIBUTE.getModelName(), ModelType.STRING)
-        .setXmlName(Element.DC_STACK_ATTRIBUTE.getXMLName())
-        .setAllowNull(true)
-        .setAllowExpression(false)
-        .build();   
-	
 	// Result set cache	
 	public static SimpleAttributeDefinition RSC_ENABLE_ATTRIBUTE = new SimpleAttributeDefinitionBuilder(Element.RSC_ENABLE_ATTRIBUTE.getModelName(), ModelType.BOOLEAN)
         .setXmlName(Element.RSC_ENABLE_ATTRIBUTE.getXMLName())

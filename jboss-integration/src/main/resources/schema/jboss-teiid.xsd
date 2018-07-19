@@ -258,15 +258,6 @@
                 </xs:complexType>
             </xs:element>
             
-            <xs:element name="distributed-cache" maxOccurs="1" minOccurs="0">
-                <xs:annotation>
-                    <xs:documentation>Cluster wide results distributor </xs:documentation>
-                </xs:annotation>
-                <xs:complexType>
-                    <xs:attribute name="jgroups-stack" type="xs:string" use="required"/>
-                </xs:complexType>
-            </xs:element>
-            
             <xs:element name="authentication" minOccurs="0" maxOccurs="1">
                 <xs:complexType>
                     <xs:attribute name="security-domain" type="xs:string">

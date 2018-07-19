@@ -36,7 +36,6 @@ import org.teiid.dqp.internal.process.DefaultAuthorizationValidator;
 import org.teiid.dqp.internal.process.TeiidExecutor;
 import org.teiid.dqp.internal.process.ThreadReuseExecutor;
 import org.teiid.net.socket.AuthenticationType;
-import org.teiid.query.ObjectReplicator;
 import org.teiid.security.SecurityHelper;
 import org.teiid.transport.SocketConfiguration;
 
@@ -46,14 +45,12 @@ public class EmbeddedConfiguration extends DQPConfiguration {
 	private SecurityHelper securityHelper;
 	private String securityDomain;
 	private TransactionManager transactionManager;
-	private ObjectReplicator objectReplicator;
 	private WorkManager workManager;
 	private boolean useDisk = true;
 	private String bufferDirectory;
 	private CacheFactory cacheFactory;
 	private int maxResultSetCacheStaleness = DEFAULT_MAX_STALENESS_SECONDS;
 	private String infinispanConfigFile = "infinispan-config.xml"; //$NON-NLS-1$
-	private String jgroupsConfigFile; // from infinispan-core
 	private List<SocketConfiguration> transports;
 	private int maxODBCLobSizeAllowed = 5*1024*1024; // 5 MB
 	private int maxAsyncThreads = DEFAULT_MAX_ASYNC_WORKERS;
@@ -116,14 +113,6 @@ public class EmbeddedConfiguration extends DQPConfiguration {
 	}
 	public void setTransactionManager(TransactionManager transactionManager) {
 		this.transactionManager = transactionManager;
-	}
-	
-	public ObjectReplicator getObjectReplicator() {
-		return objectReplicator;
-	}
-	
-	public void setObjectReplicator(ObjectReplicator objectReplicator) {
-		this.objectReplicator = objectReplicator;
 	}
 	
 	/**
@@ -210,12 +199,6 @@ public class EmbeddedConfiguration extends DQPConfiguration {
 	public void setMaxResultSetCacheStaleness(int maxResultSetCacheStaleness) {
 		this.maxResultSetCacheStaleness = maxResultSetCacheStaleness;
 	}
-	public String getJgroupsConfigFile() {
-		return jgroupsConfigFile;
-	}
-	public void setJgroupsConfigFile(String jgroupsConfigFile) {
-		this.jgroupsConfigFile = jgroupsConfigFile;
-	}	
 	
 	protected void stop() {
 		if (cacheManager != null) {

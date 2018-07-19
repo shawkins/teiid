@@ -34,7 +34,6 @@ connect
 
 :restart-servers(blocking=true)
 
-/profile=ha/subsystem=jgroups/channel=ee/fork=teiid-cluster:add()
 /profile=ha/subsystem=infinispan/cache-container=teiid-cache:add()
 /profile=ha/subsystem=infinispan/cache-container=teiid-cache/transport=TRANSPORT:add(lock-timeout=60000, channel=teiid-cluster)
 /profile=ha/subsystem=infinispan/cache-container=teiid-cache/replicated-cache=resultset-repl:add(mode=SYNC)
@@ -59,15 +58,6 @@ connect
 /profile=ha/subsystem=security/security-domain=teiid-security/authentication=classic:add()
 /profile=ha/subsystem=security/security-domain=teiid-security/authentication=classic/login-module=RealmDirect:add(code=RealmDirect, flag=sufficient, module-options=[("password-stacking"=>"useFirstPass")]) 
 
-/profile=full-ha/subsystem=jgroups/channel=ee/fork=teiid-cluster:add()
-/profile=full-ha/subsystem=infinispan/cache-container=teiid-cache:add()
-/profile=full-ha/subsystem=infinispan/cache-container=teiid-cache/transport=TRANSPORT:add(lock-timeout=60000, channel=teiid-cluster)
-/profile=full-ha/subsystem=infinispan/cache-container=teiid-cache/replicated-cache=resultset-repl:add(mode=SYNC)
-/profile=full-ha/subsystem=infinispan/cache-container=teiid-cache/replicated-cache=resultset-repl/component=locking:add(isolation=READ_COMMITTED)
-/profile=full-ha/subsystem=infinispan/cache-container=teiid-cache/replicated-cache=resultset-repl/component=expiration:add(lifespan=7200000)
-/profile=full-ha/subsystem=infinispan/cache-container=teiid-cache/replicated-cache=resultset-repl/component=eviction:add(max-entries=1024, strategy=LIRS)
-/profile=full-ha/subsystem=infinispan/cache-container=teiid-cache/replicated-cache=resultset-repl/component=transaction:add(mode=NON_XA)
-
 /profile=full-ha/subsystem=infinispan/cache-container=teiid-cache/local-cache=resultset:add()
 /profile=full-ha/subsystem=infinispan/cache-container=teiid-cache/local-cache=resultset/component=locking:add(isolation=READ_COMMITTED)
 /profile=full-ha/subsystem=infinispan/cache-container=teiid-cache/local-cache=resultset/component=expiration:add(lifespan=7200000)
@@ -86,7 +76,7 @@ connect
 
 :restart-servers(blocking=true)
 
-/profile=ha/subsystem=teiid:add(authentication-security-domain=teiid-security, resultset-cache-infinispan-container=teiid-cache,preparedplan-cache-infinispan-container=teiid-cache,policy-decider-module=org.jboss.teiid,distributed-cache-jgroups-stack=teiid-cluster)
+/profile=ha/subsystem=teiid:add(authentication-security-domain=teiid-security, resultset-cache-infinispan-container=teiid-cache,preparedplan-cache-infinispan-container=teiid-cache,policy-decider-module=org.jboss.teiid)
 /profile=ha/subsystem=teiid/transport=local:add()
 /profile=ha/subsystem=teiid/transport=odata:add()
 /profile=ha/subsystem=teiid/transport=jdbc:add(protocol=teiid, socket-binding=teiid-jdbc)
@@ -172,7 +162,7 @@ connect
 /profile=ha/subsystem=resource-adapters/resource-adapter=solr:add(module=org.jboss.teiid.resource-adapter.solr)
 /profile=ha/subsystem=resource-adapters/resource-adapter=infinispan:add(module=org.jboss.teiid.resource-adapter.infinispan.hotrod)
 
-/profile=full-ha/subsystem=teiid:add(authentication-security-domain=teiid-security, resultset-cache-infinispan-container=teiid-cache,preparedplan-cache-infinispan-container=teiid-cache,policy-decider-module=org.jboss.teiid,distributed-cache-jgroups-stack=teiid-cluster)
+/profile=full-ha/subsystem=teiid:add(authentication-security-domain=teiid-security, resultset-cache-infinispan-container=teiid-cache,preparedplan-cache-infinispan-container=teiid-cache,policy-decider-module=org.jboss.teiid)
 /profile=full-ha/subsystem=teiid/transport=local:add()
 /profile=full-ha/subsystem=teiid/transport=odata:add()
 /profile=full-ha/subsystem=teiid/transport=jdbc:add(protocol=teiid, socket-binding=teiid-jdbc)

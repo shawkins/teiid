@@ -11,7 +11,6 @@
         <bundle dependency="true">mvn:org.jboss.logging/jboss-logging/${version.org.jboss.logging.jboss-logging}</bundle>
         <bundle dependency="true">wrap:mvn:org.jboss.marshalling/jboss-marshalling-river/${version.org.jboss.marshalling.jboss-marshalling-river}</bundle>
         <bundle dependency="true">wrap:mvn:org.jboss.marshalling/jboss-marshalling/${version.org.jboss.marshalling.jboss-marshalling}</bundle>
-        <bundle dependency="true">mvn:org.jgroups/jgroups/${version.org.jgroups}</bundle>
         <bundle dependency="true">wrap:mvn:javax.transaction/jta/${version.jta}</bundle>
         <bundle dependency="true">wrap:mvn:net.sourceforge.saxon/saxonhe/${version.net.sourceforge.saxon}</bundle>
         <bundle dependency="true">wrap:mvn:org.jboss/staxmapper/${version.org.jboss.staxmapper}</bundle>

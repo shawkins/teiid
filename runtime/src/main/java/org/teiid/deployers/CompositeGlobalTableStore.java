@@ -28,9 +28,6 @@ import org.teiid.api.exception.query.QueryMetadataException;
 import org.teiid.common.buffer.BufferManager;
 import org.teiid.core.TeiidComponentException;
 import org.teiid.core.TeiidProcessingException;
-import org.teiid.logging.LogConstants;
-import org.teiid.logging.LogManager;
-import org.teiid.query.ObjectReplicator;
 import org.teiid.query.metadata.QueryMetadataInterface;
 import org.teiid.query.metadata.TempMetadataID;
 import org.teiid.query.metadata.TransformationMetadata;
@@ -40,21 +37,13 @@ import org.teiid.query.tempdata.GlobalTableStore;
 import org.teiid.query.tempdata.GlobalTableStoreImpl;
 import org.teiid.query.tempdata.GlobalTableStoreImpl.MatTableInfo;
 import org.teiid.query.tempdata.TempTable;
-import org.teiid.runtime.RuntimePlugin;
 
 public class CompositeGlobalTableStore implements GlobalTableStore {
 
-	public static GlobalTableStore createInstance(CompositeVDB vdb, BufferManager bufferManager, ObjectReplicator replicator) {
+	public static GlobalTableStore createInstance(CompositeVDB vdb, BufferManager bufferManager) {
 		VDBMetaData vdbMetadata = vdb.getVDB();
 		QueryMetadataInterface metadata = vdbMetadata.getAttachment(TransformationMetadata.class);
 		GlobalTableStore gts = new GlobalTableStoreImpl(bufferManager, vdbMetadata, metadata);
-		if (replicator != null) {
-			try {
-				gts = replicator.replicate(vdbMetadata.getFullName(), GlobalTableStore.class, gts, 300000);
-			} catch (Exception e) {
-				LogManager.logError(LogConstants.CTX_RUNTIME, e, RuntimePlugin.Util.gs(RuntimePlugin.Event.TEIID40088, gts));
-			}
-		}	
 		if (vdb.getChildren() == null) {
 			return gts;
 		}
@@ -170,6 +159,12 @@ public class CompositeGlobalTableStore implements GlobalTableStore {
 	
 	GlobalTableStore getPrimary() {
 		return primary;
+	}
+	
+	@Override
+	public void stop() {
+	    // TODO Auto-generated method stub
+	    
 	}
 
 }

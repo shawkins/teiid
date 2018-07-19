@@ -92,12 +92,6 @@ class TeiidSubsystemParser implements XMLStreamConstants, XMLElementReader<List<
     		writer.writeEndElement();
     	}
     	
-    	if (like(node, Element.DISTRIBUTED_CACHE)){
-    		writer.writeStartElement(Element.DISTRIBUTED_CACHE.getLocalName());
-    		writeObjectReplicatorConfiguration(writer, node);
-    		writer.writeEndElement();
-    	}
-    	
     	// authentication
     	if (like(node, Element.AUTHENTICATION_ELEMENT)) {
 			writer.writeStartElement(Element.AUTHENTICATION_ELEMENT.getLocalName());
@@ -140,10 +134,6 @@ class TeiidSubsystemParser implements XMLStreamConstants, XMLElementReader<List<
         THREAD_COUNT_ATTRIBUTE.marshallAsAttribute(node, false, writer);
     }
     
-    private void writeObjectReplicatorConfiguration(XMLExtendedStreamWriter writer, ModelNode node) throws XMLStreamException {
-    	DC_STACK_ATTRIBUTE.marshallAsAttribute(node, false, writer);
-	}
-
 	private void writeTranslator(XMLExtendedStreamWriter writer, ModelNode node, String translatorName) throws XMLStreamException {
     	writer.writeAttribute(Element.TRANSLATOR_NAME_ATTRIBUTE.getLocalName(), translatorName);
     	TRANSLATOR_MODULE_ATTRIBUTE.marshallAsAttribute(node, false, writer);
@@ -290,10 +280,6 @@ class TeiidSubsystemParser implements XMLStreamConstants, XMLElementReader<List<
     					break;
     					
   					// complex types
-    				case DISTRIBUTED_CACHE:
-    					parseObjectReplicator(reader, bootServices);
-    					break;
-    					
     				case BUFFER_SERVICE_ELEMENT:
     					parseBufferService(reader, bootServices);
     					break;
@@ -377,26 +363,6 @@ class TeiidSubsystemParser implements XMLStreamConstants, XMLElementReader<List<
         while (reader.hasNext() && (reader.nextTag() != XMLStreamConstants.END_ELEMENT));
         return node;        
     }
-
-    private ModelNode parseObjectReplicator(XMLExtendedStreamReader reader, ModelNode node) throws XMLStreamException {
-    	if (reader.getAttributeCount() > 0) {
-    		for(int i=0; i<reader.getAttributeCount(); i++) {
-    			String attrName = reader.getAttributeLocalName(i);
-    			String attrValue = reader.getAttributeValue(i);
-    			
-    			Element element = Element.forName(attrName, Element.DISTRIBUTED_CACHE);
-    			switch(element) {
-    			case DC_STACK_ATTRIBUTE:
-    				node.get(element.getModelName()).set(attrValue);
-    				break;
-                default: 
-                    throw ParseUtils.unexpectedAttribute(reader, i);
-    			}    			
-    		}
-    	}
-        while (reader.hasNext() && (reader.nextTag() != XMLStreamConstants.END_ELEMENT));
-    	return node;
-	}
 
 	private String parseTransport(XMLExtendedStreamReader reader, ModelNode node) throws XMLStreamException {
 		String transportName = null; 

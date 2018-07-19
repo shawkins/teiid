@@ -94,11 +94,6 @@
 			<artifactId>jboss-logging</artifactId>
 			<scope>test</scope>        
 		</dependency>
-<!-- 		<dependency>
-			<groupId>org.jboss.as</groupId>
-			<artifactId>jboss-as-clustering-jgroups</artifactId>
-			<scope>test</scope> 
-		</dependency> --> 
 		<dependency>
 			<groupId>io.netty</groupId>
 			<artifactId>netty-all</artifactId>

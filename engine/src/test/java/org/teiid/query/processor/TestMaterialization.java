@@ -20,8 +20,6 @@ package org.teiid.query.processor;
 
 import static org.junit.Assert.*;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.util.Arrays;
 import java.util.List;
 
@@ -39,9 +37,7 @@ import org.teiid.query.metadata.TempMetadataID;
 import org.teiid.query.metadata.TransformationMetadata;
 import org.teiid.query.optimizer.capabilities.CapabilitiesFinder;
 import org.teiid.query.optimizer.capabilities.DefaultCapabilitiesFinder;
-import org.teiid.query.optimizer.relational.RelationalPlanner;
 import org.teiid.query.tempdata.GlobalTableStoreImpl;
-import org.teiid.query.tempdata.GlobalTableStoreImpl.MatTableInfo;
 import org.teiid.query.tempdata.TempTableDataManager;
 import org.teiid.query.tempdata.TempTableStore;
 import org.teiid.query.tempdata.TempTableStore.TransactionMode;
@@ -90,25 +86,6 @@ public class TestMaterialization {
 		assertEquals(1, hdm.getCommandHistory().size());
 		execute("SELECT * from vgroup3 where x is null", Arrays.asList(null, null));
 		assertEquals(1, hdm.getCommandHistory().size());
-	}
-	
-	@Test public void testReadWrite() throws Exception {
-		execute("SELECT * from vgroup3 where x = 'one'", Arrays.asList("one", "zne"));
-		ByteArrayOutputStream baos = new ByteArrayOutputStream();
-		String matTableName = RelationalPlanner.MAT_PREFIX + "MATVIEW.VGROUP3";
-		this.globalStore.getState(matTableName, baos);
-		MatTableInfo matTableInfo = this.globalStore.getMatTableInfo(matTableName);
-		long time = matTableInfo.getUpdateTime();
-		this.globalStore.failedLoad(matTableName);
-		this.globalStore.setState(matTableName, new ByteArrayInputStream(baos.toByteArray()));
-		assertEquals(time, matTableInfo.getUpdateTime());
-		execute("SELECT * from vgroup3 where x = 'one'", Arrays.asList("one", "zne"));
-		
-		execute("select lookup('mattable.info', 'e1', 'e2', 5)", Arrays.asList((String)null));
-		baos = new ByteArrayOutputStream();
-		String codeTableName = "#CODE_MATTABLE.INFO.E2.E1";
-		this.globalStore.getState(codeTableName, baos);
-		this.globalStore.setState(codeTableName, new ByteArrayInputStream(baos.toByteArray()));
 	}
 	
     @Test(expected=TeiidProcessingException.class) public void testCodeTableResponseException() throws Exception {

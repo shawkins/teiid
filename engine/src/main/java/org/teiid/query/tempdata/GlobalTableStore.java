@@ -62,4 +62,6 @@ public interface GlobalTableStore {
 	@Replicated(replicateState=ReplicationMode.PUSH)
 	void loaded(String matTableName, TempTable table);
 
+    void stop();
+
 }
