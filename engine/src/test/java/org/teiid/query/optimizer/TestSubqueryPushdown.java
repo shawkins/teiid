@@ -20,6 +20,7 @@ package org.teiid.query.optimizer;
 
 import static org.junit.Assert.*;
 import static org.teiid.query.optimizer.TestOptimizer.*;
+import static org.teiid.query.processor.TestProcessor.*;
 
 import java.util.Arrays;
 import java.util.List;
@@ -1828,4 +1829,53 @@ public class TestSubqueryPushdown {
         
         TestProcessor.helpProcess(pp, cc, dataMgr, new List[] {Arrays.asList(new ArrayImpl(1))});
     }
+    
+    @Test public void testSelectSubqueryJoin() throws Exception {
+        String sql = "SELECT pm1.g1.e1, pm1.g1.e2, (select count(*) from pm1.g2 where e1 = pm1.g1.e1) FROM pm1.g1"; //$NON-NLS-1$
+
+        QueryMetadataInterface metadata = RealMetadataFactory.example1();
+        RealMetadataFactory.setCardinality("pm1.g2", 1000, metadata);
+        RealMetadataFactory.setCardinality("pm1.g1", 10, metadata);
+        BasicSourceCapabilities bsc = TestOptimizer.getTypicalCapabilities();
+        CommandContext cc = TestProcessor.createCommandContext();
+        ProcessorPlan pp = TestProcessor.helpGetPlan(TestOptimizer.helpGetCommand(sql, metadata), metadata, new DefaultCapabilitiesFinder(bsc), cc);
+        
+        List[] expected = new List[] { Arrays.asList("a", 1, 3), Arrays.asList("b", 2, 1), Arrays.asList("c", 3, null) };
+        
+        HardcodedDataManager manager = new HardcodedDataManager(metadata);
+        manager.addData("SELECT g_0.e1 AS c_0, g_0.e2 AS c_1 FROM g1 AS g_0 ORDER BY c_0", new List[] {Arrays.asList("a", 1), Arrays.asList("b", 2), Arrays.asList("c", 3)});
+        manager.addData("SELECT g_0.e1 FROM g2 AS g_0 WHERE g_0.e1 IN ('a', 'b', 'c')", new List[] {Arrays.asList("a"), Arrays.asList("b"), Arrays.asList("a"), Arrays.asList("a")});
+        helpProcess(pp, manager, expected);
+    }
+    
+    @Test public void testTwoSelectSubqueryJoin() throws Exception {
+        String sql = "SELECT pm1.g1.e1, pm1.g1.e2, (select max(e1) from pm1.g2 where e2 = pm1.g1.e2), (select count(*) from pm1.g2 where e1 = pm1.g1.e1) FROM pm1.g1"; //$NON-NLS-1$
+
+        QueryMetadataInterface metadata = RealMetadataFactory.example1();
+        RealMetadataFactory.setCardinality("pm1.g2", 1000, metadata);
+        RealMetadataFactory.setCardinality("pm1.g1", 10, metadata);
+        BasicSourceCapabilities bsc = TestOptimizer.getTypicalCapabilities();
+        CommandContext cc = TestProcessor.createCommandContext();
+        ProcessorPlan pp = TestProcessor.helpGetPlan(TestOptimizer.helpGetCommand(sql, metadata), metadata, new DefaultCapabilitiesFinder(bsc), cc);
+        
+        List[] expected = new List[] { Arrays.asList("a", 1, "b", 3), Arrays.asList("b", 2, null, 1), Arrays.asList("c", 3, null, 0) };
+        
+        HardcodedDataManager manager = new HardcodedDataManager(metadata);
+        manager.addData("SELECT g_0.e1 AS c_0, g_0.e2 AS c_1 FROM g1 AS g_0 ORDER BY c_1", new List[] {Arrays.asList("a", 1), Arrays.asList("b", 2), Arrays.asList("c", 3)});
+        //manager.addData("SELECT g_0.e1 FROM g2 AS g_0 WHERE g_0.e1 IN ('a', 'b', 'c')", new List[] {Arrays.asList("a"), Arrays.asList("b"), Arrays.asList("a"), Arrays.asList("a")});
+        //manager.addData("SELECT 1 FROM g2 AS g_0 WHERE g_0.e1 = 'a'", new List[] {Arrays.asList(1), Arrays.asList(1), Arrays.asList(1)});
+        manager.addData("SELECT 1 FROM g2 AS g_0 WHERE g_0.e1 = 'b'", new List[] {Arrays.asList(1)});
+        manager.addData("SELECT 1 FROM g2 AS g_0 WHERE g_0.e1 = 'c'", new List[] {});
+        manager.addData("SELECT g_0.e2, g_0.e1 FROM g2 AS g_0 WHERE g_0.e2 IN (1, 2, 3)", new List[] {Arrays.asList(1, "a"), Arrays.asList(1, "b"), Arrays.asList(1, "a"), Arrays.asList(1, "a")});
+        helpProcess(pp, manager, expected);
+    }
+    
+    /*
+     // cost based doensn't proceed
+     */
+    
+    /*
+     // dep join not pushed
+     */
 }
+
