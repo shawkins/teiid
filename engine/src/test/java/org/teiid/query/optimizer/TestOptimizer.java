@@ -6714,6 +6714,15 @@ public class TestOptimizer {
         new DefaultCapabilitiesFinder(bsc), ComparisonMode.EXACT_COMMAND_STRING);
     }
 
+    @Test public void testSomething() throws Exception {
+        String sql = "select (select pm1.g2.e2 from pm1.g2 where pm1.g2.e1 = a.e1 limit 1) e, a.* from pm1.g1 a where a.e1 = 'test'";
+
+        BasicSourceCapabilities bsc = getTypicalCapabilities();
+        bsc.setFunctionSupport(SourceSystemFunctions.TIMESTAMPADD, true);
+        bsc.setCapabilitySupport(Capability.ONLY_TIMESTAMPADD_LITERAL, true);
+        System.out.println(TestOptimizer.helpPlan(sql, RealMetadataFactory.example1Cached(), new String[] {"SELECT g_0.e1, g_0.e2, g_0.e3, g_0.e4 FROM pm1.g1 AS g_0 WHERE g_0.e1 = 'test'"}, new DefaultCapabilitiesFinder(bsc), ComparisonMode.EXACT_COMMAND_STRING));
+    }
+
     public static final boolean DEBUG = false;
 
 }

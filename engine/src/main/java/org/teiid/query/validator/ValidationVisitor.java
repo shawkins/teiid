@@ -1321,8 +1321,6 @@ public class ValidationVisitor extends AbstractValidationVisitor {
     @Override
     public void visit(TextTable obj) {
         boolean widthSet = false;
-        Character delimiter = null;
-        Character quote = null;
         boolean usingSelector = false;
         for (TextTable.TextColumn column : obj.getColumns()) {
             if (column.isOrdinal()) {
@@ -1351,17 +1349,14 @@ public class ValidationVisitor extends AbstractValidationVisitor {
                 handleValidationError(QueryPlugin.Util.getString("ValidationVisitor.text_table_width"), obj); //$NON-NLS-1$
             }
         } else {
-            if (obj.getHeader() != null && obj.getHeader() < 0) {
+            if (obj.getHeader() instanceof Constant && !((Constant)obj.getHeader()).isNull() && (Integer)((Constant)obj.getHeader()).getValue() < 0) {
                 handleValidationError(QueryPlugin.Util.getString("ValidationVisitor.text_table_negative"), obj); //$NON-NLS-1$
             }
             if (!obj.isUsingRowDelimiter()) {
                 handleValidationError(QueryPlugin.Util.getString("ValidationVisitor.fixed_option"), obj); //$NON-NLS-1$
             }
-            delimiter = obj.getDelimiter();
-            quote = obj.getQuote();
-            validateTextOptions(obj, delimiter, quote, obj.getRowDelimiter());
         }
-        if (obj.getSkip() != null && obj.getSkip() < 0) {
+        if (obj.getSkip() instanceof Constant && !((Constant)obj.getSkip()).isNull() && (Integer)((Constant)obj.getSkip()).getValue() < 0) {
             handleValidationError(QueryPlugin.Util.getString("ValidationVisitor.text_table_negative"), obj); //$NON-NLS-1$
         }
         if (usingSelector && obj.getSelector() == null) {
@@ -1369,7 +1364,7 @@ public class ValidationVisitor extends AbstractValidationVisitor {
         }
     }
 
-    private void validateTextOptions(LanguageObject obj, Character delimiter,
+    public void validateTextOptions(LanguageObject obj, Character delimiter,
             Character quote, Character newLine) {
         if (quote == null) {
             quote = '"';

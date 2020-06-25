@@ -372,6 +372,26 @@ public class SimpleQueryResolver implements CommandResolver {
                     break;
                 }
             }
+
+            try {
+                if (obj.getDelimiter() != null) {
+                    obj.setDelimiter(ResolverUtil.convertExpression(obj.getDelimiter(), DataTypeManager.DefaultDataTypes.CHAR, metadata));
+                }
+                if (obj.getHeader() != null) {
+                    obj.setHeader(ResolverUtil.convertExpression(obj.getHeader(), DataTypeManager.DefaultDataTypes.INTEGER, metadata));
+                }
+                if (obj.getQuote() != null) {
+                    obj.setQuote(ResolverUtil.convertExpression(obj.getQuote(), DataTypeManager.DefaultDataTypes.CHAR, metadata));
+                }
+                if (obj.getRowDelimiter() != null) {
+                    obj.setRowDelimiter(ResolverUtil.convertExpression(obj.getRowDelimiter(), DataTypeManager.DefaultDataTypes.CHAR, metadata));
+                }
+                if (obj.getSkip() != null) {
+                    obj.setSkip(ResolverUtil.convertExpression(obj.getSkip(), DataTypeManager.DefaultDataTypes.INTEGER, metadata));
+                }
+            } catch (QueryResolverException e) {
+                throw new TeiidRuntimeException(e);
+            }
         }
 
         @Override

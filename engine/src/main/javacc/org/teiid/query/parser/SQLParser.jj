@@ -2755,12 +2755,12 @@ TextTable textTable(ParseInfo info) :
 	TextTable.TextColumn column = null;
 	List<TextTable.TextColumn> columns = new ArrayList<TextTable.TextColumn>();
 	boolean useRowDelimiter = true;
-	Character delimiter = null;
-	Character rowDelimiter = null;
+	Expression delimiter = null;
+	Expression rowDelimiter = null;
 	boolean escape = false;
-	Character quote = null;
-	Integer header = null;
-	Integer skip = null;
+	Expression quote = null;
+	Expression header = null;
+	Expression skip = null;
 	String selector = null;
 	String aliasID = null;
 	boolean noTrim = false;
@@ -2789,32 +2789,32 @@ TextTable textTable(ParseInfo info) :
 	  })
 	  |
 	  (<ROW> <DELIMITER>
-	    rowDelimiter = charVal(info, " ROW DELMITER")
+	    rowDelimiter = commonValueExpression(info)
 	  ))
 	]
 	[
 	  <DELIMITER>
-	  delimiter = charVal(info, "DELMITER")
+	  delimiter = commonValueExpression(info)
 	]
 	[
-	  (<ESCAPE> quote = charVal(info, "ESCAPE") ) { escape = true; }
+	  (<ESCAPE> quote = commonValueExpression(info) ) { escape = true; }
 	  |
-	  (<QUOTE> quote = charVal(info, "QUOTE") )
+	  (<QUOTE> quote = commonValueExpression(info) )
 	]
 	[
 	  <HEADER>
 	  [
-	  	header = intVal()
+	  	header = unsignedValueExpressionPrimary(info)
 	  ]
 	  {
 	  	if (header == null) {
-	  		header = 1;
+	  		header = new Constant(1);
 	  	}
 	  }
 	]
 	[
 	  <SKIP_KEYWORD>
-	  skip = intVal()
+	  skip = unsignedValueExpressionPrimary(info)
 	]
 	[ LOOKAHEAD(2)
       <NO> <TRIM>

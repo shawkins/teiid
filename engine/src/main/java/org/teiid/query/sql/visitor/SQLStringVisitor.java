@@ -2187,7 +2187,7 @@ public class SQLStringVisitor extends LanguageVisitor {
         if (obj.getHeader() != null) {
             append(SPACE);
             append(NonReserved.HEADER);
-            if (1 != obj.getHeader()) {
+            if (!new Constant(1).equals(obj.getHeader())) {
                 append(SPACE);
                 append(obj.getHeader());
             }

@@ -132,12 +132,12 @@ public class TextTable extends TableFunctionReference {
 
     private Expression file;
     private List<TextColumn> columns = new ArrayList<TextColumn>();
-    private Character rowDelimiter;
-    private Character delimiter;
-    private Character quote;
+    private Expression rowDelimiter;
+    private Expression delimiter;
+    private Expression quote;
     private boolean escape;
-    private Integer header;
-    private Integer skip;
+    private Expression header;
+    private Expression skip;
     private boolean usingRowDelimiter = true;
     private String selector;
 
@@ -151,11 +151,11 @@ public class TextTable extends TableFunctionReference {
         this.selector = selector;
     }
 
-    public Character getQuote() {
+    public Expression getQuote() {
         return quote;
     }
 
-    public void setQuote(Character quote) {
+    public void setQuote(Expression quote) {
         this.quote = quote;
     }
 
@@ -183,35 +183,35 @@ public class TextTable extends TableFunctionReference {
         this.columns = columns;
     }
 
-    public Character getRowDelimiter() {
+    public Expression getRowDelimiter() {
         return rowDelimiter;
     }
 
-    public void setRowDelimiter(Character rowDelimiter) {
+    public void setRowDelimiter(Expression rowDelimiter) {
         this.rowDelimiter = rowDelimiter;
     }
 
-    public Character getDelimiter() {
+    public Expression getDelimiter() {
         return delimiter;
     }
 
-    public void setDelimiter(Character delimiter) {
+    public void setDelimiter(Expression delimiter) {
         this.delimiter = delimiter;
     }
 
-    public Integer getHeader() {
+    public Expression getHeader() {
         return header;
     }
 
-    public void setHeader(Integer header) {
+    public void setHeader(Expression header) {
         this.header = header;
     }
 
-    public Integer getSkip() {
+    public Expression getSkip() {
         return skip;
     }
 
-    public void setSkip(Integer skip) {
+    public void setSkip(Expression skip) {
         this.skip = skip;
     }
 
