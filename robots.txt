@@ -1,0 +1,3 @@
+User-agent: *
+Disallow: /teiid-documents/content
+Allow: /teiid-documents/content/master
