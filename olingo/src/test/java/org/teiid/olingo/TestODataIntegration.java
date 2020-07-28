@@ -3293,4 +3293,36 @@ public class TestODataIntegration {
         assertEquals(200, response.getStatus());
     }
 
+    @Test public void testEmbeddedComplexType() throws Exception {
+        String ddl = "CREATE FOREIGN TABLE \"table\" (\n" +
+                "    \"_id\" integer,\n" +
+                "    CONSTRAINT PK0 PRIMARY KEY(\"_id\")\n" +
+                ") OPTIONS (UPDATABLE TRUE, \"teiid_rel:fqn\" 'collection=table');\n" +
+                "\n" +
+                "CREATE FOREIGN TABLE \"list\" (\n" +
+                "    col1 string,\n" +
+                "    col2 string,\n" +
+                "    table__id integer OPTIONS (UPDATABLE FALSE),\n" +
+                "    FOREIGN KEY(table__id) REFERENCES \"table\" \n" +
+                ") OPTIONS (UPDATABLE TRUE, \"teiid_mongo:MERGE\" 'table', \"teiid_rel:fqn\" 'collection=table/embedded=col1');";
+
+
+        HardCodedExecutionFactory hc = new HardCodedExecutionFactory();
+        teiid.addTranslator("complex", hc);
+
+        ModelMetaData mmd = new ModelMetaData();
+        mmd.setName("m");
+        mmd.addSourceMetadata("ddl", ddl);
+        mmd.addSourceMapping("complex", "complex", null);
+        teiid.deployVDB("northwind", mmd);
+
+        hc.addData("SELECT table._id FROM table", Arrays.asList(Arrays.asList(1)));
+
+        ContentResponse response = http.newRequest(baseURL + "/northwind/m/table(1)?$select=something")
+            .method("GET")
+            .send();
+        assertEquals(200, response.getStatus());
+        System.out.println(response.getContentAsString());
+    }
+
 }

@@ -17,7 +17,8 @@
  */
 package org.teiid.olingo;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -37,6 +38,7 @@ import javax.servlet.WriteListener;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import org.apache.olingo.commons.api.edm.provider.CsdlEntityType;
 import org.apache.olingo.commons.api.edm.provider.CsdlProperty;
 import org.apache.olingo.commons.api.edm.provider.CsdlSchema;
 import org.apache.olingo.commons.api.edmx.EdmxReference;
@@ -1130,16 +1132,38 @@ public class TestODataSQLBuilder {
                 "e3 timestamp(0),\n" +
                 "e4 timestamp(1));";
 
-        TransformationMetadata metadata = RealMetadataFactory.fromDDL(ddl, "vdb", "PM1");
-        MetadataStore store = metadata.getMetadataStore();
-        org.teiid.metadata.Schema teiidSchema = store.getSchema("PM1");
-        CsdlSchema schema = ODataSchemaBuilder.buildMetadata("vdb", teiidSchema);
+        CsdlSchema schema = buildSchema(ddl);
         CsdlProperty property = schema.getEntityType("G1").getProperty("e1");
         assertNull(property.getPrecision());
         property = schema.getEntityType("G1").getProperty("e3");
         assertEquals(0, property.getPrecision().intValue());
         property = schema.getEntityType("G1").getProperty("e4");
         assertEquals(1, property.getPrecision().intValue());
+    }
+
+    @Test public void testEmbeddedComplexType() throws Exception {
+        String ddl = "CREATE FOREIGN TABLE \"table\" (\n" +
+                "    \"_id\" integer,\n" +
+                "    CONSTRAINT PK0 PRIMARY KEY(\"_id\")\n" +
+                ") OPTIONS (UPDATABLE TRUE, \"teiid_rel:fqn\" 'collection=table');\n" +
+                "\n" +
+                "CREATE FOREIGN TABLE \"list\" (\n" +
+                "    col1 string,\n" +
+                "    col2 string,\n" +
+                "    table__id integer OPTIONS (UPDATABLE FALSE),\n" +
+                "    FOREIGN KEY(table__id) REFERENCES \"table\" \n" +
+                ") OPTIONS (UPDATABLE TRUE, \"teiid_mongo:MERGE\" 'table', \"teiid_rel:fqn\" 'collection=table/embedded=col1');";
+
+        CsdlSchema schema = buildSchema(ddl);
+        CsdlEntityType property = schema.getEntityType("table");
+        System.out.println(property);
+    }
+
+    private CsdlSchema buildSchema(String ddl) throws Exception {
+        TransformationMetadata metadata = RealMetadataFactory.fromDDL(ddl, "vdb", "PM1");
+        MetadataStore store = metadata.getMetadataStore();
+        org.teiid.metadata.Schema teiidSchema = store.getSchema("PM1");
+        return ODataSchemaBuilder.buildMetadata("vdb", teiidSchema);
     }
 
     @Test

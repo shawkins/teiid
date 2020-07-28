@@ -26,7 +26,26 @@ import java.util.regex.Pattern;
 import org.apache.olingo.commons.api.edm.EdmPrimitiveTypeKind;
 import org.apache.olingo.commons.api.edm.FullQualifiedName;
 import org.apache.olingo.commons.api.edm.geo.SRID;
-import org.apache.olingo.commons.api.edm.provider.*;
+import org.apache.olingo.commons.api.edm.provider.CsdlAction;
+import org.apache.olingo.commons.api.edm.provider.CsdlActionImport;
+import org.apache.olingo.commons.api.edm.provider.CsdlAnnotatable;
+import org.apache.olingo.commons.api.edm.provider.CsdlAnnotation;
+import org.apache.olingo.commons.api.edm.provider.CsdlComplexType;
+import org.apache.olingo.commons.api.edm.provider.CsdlEntityContainer;
+import org.apache.olingo.commons.api.edm.provider.CsdlEntitySet;
+import org.apache.olingo.commons.api.edm.provider.CsdlEntityType;
+import org.apache.olingo.commons.api.edm.provider.CsdlFunction;
+import org.apache.olingo.commons.api.edm.provider.CsdlFunctionImport;
+import org.apache.olingo.commons.api.edm.provider.CsdlNavigationProperty;
+import org.apache.olingo.commons.api.edm.provider.CsdlNavigationPropertyBinding;
+import org.apache.olingo.commons.api.edm.provider.CsdlOperation;
+import org.apache.olingo.commons.api.edm.provider.CsdlParameter;
+import org.apache.olingo.commons.api.edm.provider.CsdlProperty;
+import org.apache.olingo.commons.api.edm.provider.CsdlPropertyRef;
+import org.apache.olingo.commons.api.edm.provider.CsdlReferentialConstraint;
+import org.apache.olingo.commons.api.edm.provider.CsdlReturnType;
+import org.apache.olingo.commons.api.edm.provider.CsdlSchema;
+import org.apache.olingo.commons.api.edm.provider.CsdlTerm;
 import org.apache.olingo.commons.api.edm.provider.annotation.CsdlCollection;
 import org.apache.olingo.commons.api.edm.provider.annotation.CsdlConstantExpression;
 import org.apache.olingo.commons.api.edm.provider.annotation.CsdlConstantExpression.ConstantExpressionType;
@@ -34,8 +53,17 @@ import org.teiid.core.TeiidRuntimeException;
 import org.teiid.core.types.DataTypeManager;
 import org.teiid.logging.LogConstants;
 import org.teiid.logging.LogManager;
-import org.teiid.metadata.*;
+import org.teiid.metadata.AbstractMetadataRecord;
+import org.teiid.metadata.BaseColumn;
 import org.teiid.metadata.BaseColumn.NullType;
+import org.teiid.metadata.Column;
+import org.teiid.metadata.ColumnSet;
+import org.teiid.metadata.ForeignKey;
+import org.teiid.metadata.KeyRecord;
+import org.teiid.metadata.MetadataFactory;
+import org.teiid.metadata.Procedure;
+import org.teiid.metadata.ProcedureParameter;
+import org.teiid.metadata.Table;
 import org.teiid.olingo.ODataPlugin;
 import org.teiid.olingo.common.ODataTypeManager;
 
@@ -59,6 +87,7 @@ public class ODataSchemaBuilder {
         public CsdlSchema schema = new CsdlSchema();
         public Map<String, CsdlEntitySet> entitySets = new LinkedHashMap<String, CsdlEntitySet>();
         public Map<String, CsdlEntityType> entityTypes = new LinkedHashMap<String, CsdlEntityType>();
+        public Map<String, CsdlComplexType> complexTypes = new LinkedHashMap<String, CsdlComplexType>();
         public TeiidEdmProvider edmProvider;
     }
 
@@ -70,7 +99,7 @@ public class ODataSchemaBuilder {
      */
     public static CsdlSchema buildMetadata(String namespace, org.teiid.metadata.Schema teiidSchema) {
         ODataSchemaInfo info = buildStructuralMetadata(namespace, teiidSchema, teiidSchema.getName());
-        buildNavigationProperties(teiidSchema, info.entityTypes, info.entitySets, new SchemaResolver() {
+        buildNavigationProperties(teiidSchema, info, new SchemaResolver() {
 
             @Override
             public ODataSchemaInfo getSchemaInfo(String schemaName) {
@@ -86,10 +115,43 @@ public class ODataSchemaBuilder {
             String fullSchemaName = namespace+"."+teiidSchema.getName();
             info.schema.setNamespace(fullSchemaName).setAlias(alias);
             buildEntityTypes(teiidSchema, info.schema, info.entitySets, info.entityTypes);
-            buildProcedures(teiidSchema, info.schema);
+            buildComplexTypes(teiidSchema, info.schema, info.entityTypes, info.complexTypes);
+            buildProcedures(teiidSchema, info.schema, info.complexTypes);
+            info.schema.setComplexTypes(new ArrayList<>(info.complexTypes.values()));
             return info;
         } catch (Exception e) {
             throw new TeiidRuntimeException(e);
+        }
+    }
+
+    static void buildComplexTypes(org.teiid.metadata.Schema schema, CsdlSchema csdlSchema, Map<String, CsdlEntityType> entityTypes, Map<String, CsdlComplexType> complexTypes) {
+
+        //look for nested complex types
+        for (Table table : schema.getTables().values()) {
+
+            KeyRecord primaryKey = getIdentifier(table);
+            if ( primaryKey != null) {
+                continue;
+            }
+
+            if (!isObjectVisible(table)) {
+                continue;
+            }
+
+            CsdlComplexType type = null;
+
+            for (ForeignKey fk : table.getForeignKeys()) {
+                Table pkTable = fk.getReferenceKey().getParent();
+
+                if (!isObjectVisible(pkTable)) {
+                    continue;
+                }
+
+                if (type == null) {
+                    type = buildComplexType(table.getName(), table, table, csdlSchema);
+                    complexTypes.put(type.getName(), type);
+                }
+            }
         }
     }
 
@@ -241,13 +303,40 @@ public class ODataSchemaBuilder {
         return null;
     }
 
-    static void buildNavigationProperties(org.teiid.metadata.Schema schema,
-            Map<String, CsdlEntityType> entityTypes, Map<String, CsdlEntitySet> entitySets, SchemaResolver resolver) {
+    static void buildNavigationProperties(org.teiid.metadata.Schema schema, ODataSchemaInfo info, SchemaResolver resolver) {
 
         for (Table table : schema.getTables().values()) {
 
+            if (!isObjectVisible(table)) {
+                continue;
+            }
+
             // skip if the table does not have the PK or unique
             if (getIdentifier(table) == null) {
+                CsdlComplexType complexType = info.complexTypes.get(table.getName());
+                if (complexType != null) {
+                    /*for (ForeignKey fk : table.getForeignKeys()) {
+                        addReverseNavigation(info.entityTypes, info.entitySets, table, fk, false, resolver);
+                    }*/
+                    for (ForeignKey fk : table.getForeignKeys()) {
+                        Table pkTable = fk.getReferenceKey().getParent();
+                        String entitySchema = pkTable.getParent().getName();
+                        ODataSchemaInfo pkSchema = resolver.getSchemaInfo(entitySchema);
+                        if (pkSchema == null) {
+                            continue;
+                        }
+                        CsdlEntityType csdlEntityType = pkSchema.entityTypes.get(pkTable.getName());
+                        if (csdlEntityType == null) {
+                            continue;
+                        }
+                        FullQualifiedName odataType = new FullQualifiedName(info.schema.getAlias(), complexType.getName());
+                        CsdlProperty property = new CsdlProperty()
+                                .setName("something")
+                                .setType(odataType)
+                                .setCollection(true);
+                        csdlEntityType.getProperties().add(property);
+                    }
+                }
                 continue;
             }
 
@@ -260,8 +349,8 @@ public class ODataSchemaBuilder {
 
                 boolean fkPKSame = setOne.equals(setTwo);
 
-                addForwardNavigation(entityTypes, entitySets, table, fk, fkPKSame, resolver);
-                addReverseNavigation(entityTypes, entitySets, table, fk, fkPKSame, resolver);
+                addForwardNavigation(info.entityTypes, info.entitySets, table, fk, fkPKSame, resolver);
+                addReverseNavigation(info.entityTypes, info.entitySets, table, fk, fkPKSame, resolver);
             }
         }
     }
@@ -269,11 +358,11 @@ public class ODataSchemaBuilder {
     private static void addForwardNavigation(Map<String, CsdlEntityType> entityTypes,
             Map<String, CsdlEntitySet> entitySets, Table table, ForeignKey fk, boolean onetoone, SchemaResolver resolver) {
         Table pkTable = fk.getReferenceKey().getParent();
-        ODataSchemaInfo schema = resolver.getSchemaInfo(pkTable.getParent().getName());
-        if (schema == null) {
+        ODataSchemaInfo pkSchema = resolver.getSchemaInfo(pkTable.getParent().getName());
+        if (pkSchema == null || pkSchema.entityTypes.get(pkTable.getName()) == null) {
             return;
         }
-        String fqn = schema.schema.getAlias() + '.' + pkTable.getName();
+        String fqn = pkSchema.schema.getAlias() + '.' + pkTable.getName();
         CsdlNavigationPropertyBinding navigationBinding = buildNavigationBinding(fk, pkTable, fqn);
         CsdlNavigationProperty navigaton = buildNavigation(fk, fqn);
         String entityTypeName = table.getName();
@@ -313,7 +402,7 @@ public class ODataSchemaBuilder {
         Table pkTable = fk.getReferenceKey().getParent();
         String entitySchema = pkTable.getParent().getName();
         ODataSchemaInfo pkSchema = resolver.getSchemaInfo(entitySchema);
-        if (pkSchema == null) {
+        if (pkSchema == null || pkSchema.entityTypes.get(pkTable.getName()) == null) {
             return;
         }
 
@@ -395,9 +484,8 @@ public class ODataSchemaBuilder {
         return navigaton;
     }
 
-    static void buildProcedures(org.teiid.metadata.Schema schema, CsdlSchema csdlSchema) {
+    static void buildProcedures(org.teiid.metadata.Schema schema, CsdlSchema csdlSchema, Map<String, CsdlComplexType> complexTypes) {
         // procedures
-        ArrayList<CsdlComplexType> complexTypes = new ArrayList<CsdlComplexType>();
         ArrayList<CsdlFunction> functions = new ArrayList<CsdlFunction>();
         ArrayList<CsdlFunctionImport> functionImports = new ArrayList<CsdlFunctionImport>();
         ArrayList<CsdlAction> actions = new ArrayList<CsdlAction>();
@@ -421,7 +509,6 @@ public class ODataSchemaBuilder {
                 buildAction(proc, complexTypes, actions, actionImports, csdlSchema);
             }
         }
-        csdlSchema.setComplexTypes(complexTypes);
         csdlSchema.setFunctions(functions);
         csdlSchema.setActions(actions);
         csdlSchema.getEntityContainer().setFunctionImports(functionImports);
@@ -504,7 +591,7 @@ public class ODataSchemaBuilder {
     }
 
     static void buildFunction(Procedure proc,
-            ArrayList<CsdlComplexType> complexTypes, ArrayList<CsdlFunction> functions,
+            Map<String, CsdlComplexType> complexTypes, ArrayList<CsdlFunction> functions,
             ArrayList<CsdlFunctionImport> functionImports, CsdlSchema csdlSchema) {
 
         CsdlFunction edmFunction = new CsdlFunction();
@@ -532,8 +619,8 @@ public class ODataSchemaBuilder {
         // add a complex type for return resultset.
         ColumnSet<Procedure> returnColumns = proc.getResultSet();
         if (returnColumns != null) {
-            CsdlComplexType complexType = buildComplexType(proc, returnColumns, csdlSchema);
-            complexTypes.add(complexType);
+            CsdlComplexType complexType = buildComplexType(proc.getName() + "_" + returnColumns.getName(), proc, returnColumns, csdlSchema); //$NON-NLS-1$
+            complexTypes.put(complexType.getName(), complexType);
             FullQualifiedName odataType = new FullQualifiedName(csdlSchema.getAlias(), complexType.getName());
             edmFunction.setReturnType((new CsdlReturnType().setType(odataType).setCollection(true)));
         }
@@ -585,7 +672,7 @@ public class ODataSchemaBuilder {
     }
 
     static void buildAction(Procedure proc,
-            ArrayList<CsdlComplexType> complexTypes,
+            Map<String, CsdlComplexType> complexTypes,
             ArrayList<CsdlAction> actions,
             ArrayList<CsdlActionImport> actionImports, CsdlSchema csdlSchema) {
         CsdlAction edmAction = new CsdlAction();
@@ -613,8 +700,8 @@ public class ODataSchemaBuilder {
         // add a complex type for return resultset.
         ColumnSet<Procedure> returnColumns = proc.getResultSet();
         if (returnColumns != null) {
-            CsdlComplexType complexType = buildComplexType(proc, returnColumns, csdlSchema);
-            complexTypes.add(complexType);
+            CsdlComplexType complexType = buildComplexType(proc.getName() + "_" + returnColumns.getName(), proc, returnColumns, csdlSchema); //$NON-NLS-1$
+            complexTypes.put(complexType.getName(), complexType);
             edmAction.setReturnType((new CsdlReturnType()
                     .setType(new FullQualifiedName(csdlSchema.getAlias(), complexType
                     .getName())).setCollection(true)));
@@ -627,11 +714,10 @@ public class ODataSchemaBuilder {
         actionImports.add(actionImport);
     }
 
-    private static CsdlComplexType buildComplexType(Procedure proc,
-            ColumnSet<Procedure> returnColumns, CsdlSchema csdlSchema) {
+    private static CsdlComplexType buildComplexType(String name, AbstractMetadataRecord record,
+            ColumnSet<?> returnColumns, CsdlSchema csdlSchema) {
         CsdlComplexType complexType = new CsdlComplexType();
-        String entityTypeName = proc.getName() + "_" + returnColumns.getName(); //$NON-NLS-1$
-        complexType.setName(entityTypeName);
+        complexType.setName(name);
 
         ArrayList<CsdlProperty> props = new ArrayList<CsdlProperty>();
         for (Column c : returnColumns.getColumns()) {
